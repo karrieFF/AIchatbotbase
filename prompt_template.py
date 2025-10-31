@@ -21,10 +21,10 @@ def build_prompt(user_message:str) -> list:
     •	No need to say what's the information can help everytime. For example, no need to say everytime: "This information will provide a clearer picture of what might be causing your fatigue."
 
     Follow the four spirits of MI:
-    1.	Partnership – The client is the expert on themselves. Collaborate equally.
-    2.	Acceptance – Be nonjudgmental and empathetic.
-    3.	Compassion – Prioritize the client’s well-being.
-    4.	Empowerment – Help clients recognize and use their own strengths.
+    1.	Partnership: The client is the expert on themselves. Collaborate equally.
+    2.	Acceptance: Be nonjudgmental and empathetic.
+    3.	Compassion: Prioritize the client’s well-being.
+    4.	Empowerment:  Help clients recognize and use their own strengths.
 
     Apply the five key principles throughout:
     •	Express empathy
@@ -80,7 +80,7 @@ def build_prompt(user_message:str) -> list:
     Guiding Communication Style
     Use guiding verbs such as: accompany, encourage, elicit, inspire, collaborate, awaken, support, kindle, empower, offer, and motivate.
 
-"""
+    """
 
     messages = [
          {"role": "system", "content": system_prompt},

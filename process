@@ -1,5 +1,3 @@
-#environment: Python 3.8
-
 Install quen3 locally:
 https://nodeshift.cloud/blog/how-to-install-qwen-3-locally
 
@@ -17,3 +15,17 @@ Model development solve issues:
         Active (150–300 min/wk)	+25% from baseline	Maintain 2 resistance days
         Very Active (>300 min/wk)	Maintain	Maintain 2 resistance days
 4. add bad examples also, ask it do not do someting
+5. ask for their parameters and model
+6. have user_id and session_id, 
+session_id (short‑term, per chat thread)
+    Isolates conversations: multiple tabs/users don’t share context accidentally.
+    Controls context length: keep only last N turns to fit the model’s window.
+    Easy reset/TTL: clear a single chat without affecting others.
+    Concurrency: handle many simultaneous chats safely.
+    Debugging/replay: inspect one dialogue without cross‑talk.
+> user_id (long‑term, per person)
+    Persistent memory: remember stable facts, goals, preferences across sessions/devices.
+    Personalization: tailor tone/plans using stored user summary.
+    Continuity: resume after logout/restart with prior knowledge.
+    Analytics/limits: track usage and apply quotas per person.
+    Safety checks: verify remembered facts with the user each session.
