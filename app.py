@@ -12,16 +12,16 @@ def chat_gradio(user_text, history):
     return history, history
 
 with gr.Blocks() as demo:
-    gr.Markdown("## 🧠 GPTCoach – Physical Activity Coach")
+    gr.Markdown("## 🧠 Physical Activity Coach")
     chatbot = gr.Chatbot(
-        value=[["assistant", engine.greeting]],
+    	value=[[None, engine.greeting]],
         height=500,
     )
-    msg = gr.Textbox(placeholder="Tell me about your PA goals...")
+    msg = gr.Textbox(placeholder="Let's start the journey to promote physical activity and imporve physical and mental health!")
     clear = gr.Button("Clear")
 
     msg.submit(chat_gradio, [msg, chatbot], [chatbot, chatbot])
     clear.click(lambda: [[], []], None, [chatbot, msg])
 
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=7860, share=True)
+    demo.launch(share=True)

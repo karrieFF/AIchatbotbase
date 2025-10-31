@@ -1,3 +1,19 @@
+#environment: Python 3.8
+
 Install quen3 locally:
 https://nodeshift.cloud/blog/how-to-install-qwen-3-locally
 
+Model development solve issues:
+1. need low temparature to get relatively not createive findings
+2. revise promopt to be concise and move the important part into front. 
+3. Can not provide this, if I provide this, the model will provide the suggestions everytime.
+    •	At the planning stage, if the client requests input, offer personalized suggestions with permission, based on:
+        o	Their current activity level
+        o	Health profile, limitations, and motivation
+        Reference for Personalized Goal Setting
+        Current Level	Aerobic Goal	Resistance Goal
+        Sedentary (0 min/wk)	Start 5–10 min/day	Add resistance if possible
+        Some (0–150 min/wk)	+30–50% from baseline	Add 1–2 resistance days
+        Active (150–300 min/wk)	+25% from baseline	Maintain 2 resistance days
+        Very Active (>300 min/wk)	Maintain	Maintain 2 resistance days
+4. add bad examples also, ask it do not do someting

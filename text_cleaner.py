@@ -31,4 +31,11 @@ def clean_response(text: str) -> str:
                 text = ""
             break
 
-    return text.strip()
+    # Deduplicate consecutive identical lines
+    lines = [line.rstrip() for line in text.splitlines()]
+    deduped_lines = []
+    for line in lines:
+        if not deduped_lines or deduped_lines[-1] != line:
+            deduped_lines.append(line)
+
+    return "\n".join(deduped_lines).strip()
