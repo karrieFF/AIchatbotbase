@@ -29,3 +29,8 @@ session_id (short‑term, per chat thread)
     Continuity: resume after logout/restart with prior knowledge.
     Analytics/limits: track usage and apply quotas per person.
     Safety checks: verify remembered facts with the user each session.
+
+
+#---------create environment
+C:\Others\EIC-Code\AIchatbotbase>python -m venv venv
+python .\main.py

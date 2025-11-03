@@ -8,8 +8,10 @@ def main():
         user = input("You: ")
         if user.strip().lower() in {"exit", "quit"}:
             break
-        ans = engine.chat(user)
+        ans, inputs, outputs = engine.chat(user)
         print("Assistant:", ans)
-
+        print("Assistant:", inputs)
+        print("Assistant", outputs)
+        
 if __name__ == "__main__":
     main()

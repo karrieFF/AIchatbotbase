@@ -11,9 +11,9 @@ class GPTCoachEngine:
         # make greeting once
         self.greeting = self._make_greeting()
 
-        # # base MI prompt once
-        self.messages = build_prompt("") #"Hi, I'd like to get some help with my physical activity."
-        self.messages.append({"role": "assistant", "content": self.greeting})
+        # Store separate conversation histories for each user and session
+        # Structure: {user_id: {session_id: [messages]}}
+        self.sessions = {}
 
     def _make_greeting(self):
         greeting_prompt = (
@@ -21,12 +21,13 @@ class GPTCoachEngine:
             "Introduce yourself briefly (<=30 words) and invite the user to talk about themselves."
         )
         greet_messages = [{"role": "system", "content": greeting_prompt}]
-
+          
         chat_text = self.tokenizer.apply_chat_template(
             greet_messages, tokenize=False, add_generation_prompt=True
         )
 
         inputs = self.tokenizer(chat_text, return_tensors="pt").to(self.model.device)
+        print(inputs)
 
         with torch.no_grad():
             outputs = self.model.generate(
@@ -37,94 +38,59 @@ class GPTCoachEngine:
                 do_sample=True,
                 eos_token_id=self.tokenizer.eos_token_id,
             )
+        print(outputs)
 
         # decode only generated part
         new_tokens = outputs[0][inputs["input_ids"].shape[1]:]
         text = self.tokenizer.decode(new_tokens, skip_special_tokens=True)
         return clean_response(text)
 
-# # ----- session helpers -----
-#     def _init_session(self, session_id: str, keep_greeting: bool = True) -> None:
-#         messages = build_prompt("")
-#         if len(messages) >= 2 and messages[1].get("role") == "user" and messages[1].get("content", "") == "":
-#             messages = [messages[0]]
-#         if keep_greeting:
-#             messages.append({"role": "assistant", "content": self.greeting})
-#         self.sessions[session_id] = messages
+    # ----- session helpers -----
+    def _init_session(self, user_id: str, session_id: str, keep_greeting: bool = True) -> None:
+        """Initialize a new session for a user with base prompt and greeting."""
+        messages = build_prompt("")
+        # Clean up empty user messages if present
+        if len(messages) >= 2 and messages[1].get("role") == "user" and messages[1].get("content", "") == "":
+            messages = [messages[0]]
 
-#     def _get_session_messages(self, session_id: str) -> List[Message]:
-#         if session_id not in self.sessions:
-#             self._init_session(session_id)
-#         return self.sessions[session_id]
-
-#     def _truncate_history(self, msgs: List[Message]) -> List[Message]:
-#         if self.max_turns is None:
-#             return msgs
-#         system = msgs[0:1]
-#         rest = msgs[1:]
-#         need = 2 * self.max_turns
-#         if len(rest) > need:
-#             rest = rest[-need:]
-#         return system + rest
-
-#     # ----- user memory -----
-#     def _memory_system_message(self, user_id: Optional[str]) -> Optional[Message]:
-#         if not user_id:
-#             return None
-#         summary = self.user_memory.get(user_id, "").strip()
-#         if not summary:
-#             return None
-#         return {
-#             "role": "system",
-#             "content": "Known user memory (verify before using; never assume):\n" + summary,
-#         }
-
-#     def _update_user_memory(self, user_id: Optional[str], session_msgs: List[Message]) -> None:
-#         if not user_id:
-#             return
-#         recent = session_msgs[-6:] if len(session_msgs) > 6 else session_msgs
-#         text_block = "\n".join([f"{m['role'].upper()}: {m['content']}" for m in recent if m.get("content")])
-
-#         prompt = [
-#             {"role": "system", "content": (
-#                 "You maintain a brief user memory for MI coaching. Extract only stable facts explicitly stated "
-#                 "by the user: demographics, preferences, constraints, goals, current plan. 1–4 short lines. "
-#                 "No advice, no numbered lists."
-#             )},
-#             {"role": "user", "content": f"Conversation:\n{text_block}\n\nCurrent memory:\n{self.user_memory.get(user_id, '')}\n\nUpdate the memory succinctly:"}
-#         ]
-#         chat_text = self.tokenizer.apply_chat_template(prompt, tokenize=False, add_generation_prompt=True)
-#         inputs = self.tokenizer(chat_text, return_tensors="pt").to(self.model.device)
-#         with torch.no_grad():
-#             outputs = self.model.generate(
-#                 **inputs,
-#                 max_new_tokens=120,
-#                 temperature=0.2,
-#                 top_p=0.6,
-#                 do_sample=False,
-#                 eos_token_id=self.tokenizer.eos_token_id,
-#             )
-#         new_tokens = outputs[0][inputs["input_ids"].shape[1]:]
-#         out = self.tokenizer.decode(new_tokens, skip_special_tokens=True)
-#         self.user_memory[user_id] = clean_response(out)
-
-    def chat(self, user_text: str) -> str:
-        """One turn of chat: add user → generate → clean → add assistant → return text."""
+        if keep_greeting:
+            messages.append({"role": "assistant", "content": self.greeting})
         
-        # this is for transfer the user text to the computer lanaugage
-        # add user message
-        self.messages.append({"role": "user", "content": user_text})
+        # Initialize user's session storage if needed
+        if user_id not in self.sessions:
+            self.sessions[user_id] = {}
+        self.sessions[user_id][session_id] = messages
 
+    def _get_session_messages(self, user_id: str, session_id: str):
+        """Get messages for a user's session, creating it if it doesn't exist."""
+        if user_id not in self.sessions or session_id not in self.sessions[user_id]:
+            self._init_session(user_id, session_id)
+        return self.sessions[user_id][session_id]
+
+    def chat(self, user_text: str, user_id: str = "default", session_id: str = "default") -> str:
+        """One turn of chat: add user → generate → clean → add assistant → return text.
+        
+        Args:
+            user_text: The user's message
+            user_id: Unique identifier for the user/person
+            session_id: Unique identifier for the conversation session
+        """
+        # Get or create user's session-specific message history
+        messages = self._get_session_messages(user_id, session_id)
+        
+        # Add user message to session history
+        messages.append({"role": "user", "content": user_text})
+
+        # Convert messages to chat template format (this is for transferring the user text to computer language)
         chat_text = self.tokenizer.apply_chat_template(
-            self.messages,
+            messages,
             tokenize=False,
             add_generation_prompt=True,
         ) #tokenizer is a tool to convert text into tokens
 
         inputs = self.tokenizer(chat_text, return_tensors="pt").to(self.model.device)
 
-
-        #generate outputs based on inputs computer lanaguage
+        # Generate outputs based on inputs (computer language)
         with torch.no_grad():
             outputs = self.model.generate(
                 **inputs,
@@ -135,14 +101,14 @@ class GPTCoachEngine:
                 eos_token_id=self.tokenizer.eos_token_id,
             )
 
-        # decode only new tokens
+        # Decode only new tokens
         new_tokens = outputs[0][inputs["input_ids"].shape[1]:]
         response = self.tokenizer.decode(new_tokens, skip_special_tokens=True)
         response = clean_response(response)
 
-        # add assistant turn, add human 
-        self.messages.append({"role": "assistant", "content": response})
+        # Add assistant response to session history
+        messages.append({"role": "assistant", "content": response})
 
-        return response
+        return response, inputs, outputs
     
 

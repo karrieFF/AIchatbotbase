@@ -18,13 +18,17 @@ engine = GPTCoachEngine ()
 
 class ChatRequest(BaseModel):
     message: str
+    user_id: Optional[str] = "default"
     session_id: Optional[str] = "default"
 
 class ChatResponse(BaseModel):
     reply: str
+    user_id: str
     session_id: str
 
 @app.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest):
-    reply = engine.chat(req.message, session_id=req.session_id or "default")
-    return ChatResponse(reply=reply, session_id=req.session_id or "default")
+    user_id = req.user_id or "default"
+    session_id = req.session_id or "default"
+    reply = engine.chat(req.message, user_id=user_id, session_id=session_id)
+    return ChatResponse(reply=reply, user_id=user_id, session_id=session_id)
