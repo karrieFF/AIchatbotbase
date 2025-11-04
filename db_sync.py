@@ -39,7 +39,7 @@ def save_message_sync(
         with conn.cursor() as cur:
             cur.execute(
                 "INSERT INTO messages (session_id, user_id, role, text, metadata) VALUES (%s,%s,%s,%s,%s)",
-                (session_id, user_id, role, text, json,dumps(metadata or {}))
+                (session_id, user_id, role, text, json.dumps(metadata or {}))
             )
         conn.commit()
 

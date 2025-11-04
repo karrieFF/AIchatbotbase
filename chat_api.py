@@ -51,44 +51,21 @@ class ChatResponse(BaseModel):
     user_id: str
     session_id: str
 
-# @app.post("/chat", response_model=ChatResponse)
-# def chat(req: ChatRequest):
-#     user_id = req.user_id or "default"
-#     session_id = req.session_id or "default"
-#     reply = engine.chat(req.message, user_id=user_id, session_id=session_id)
-#     return ChatResponse(reply=reply, user_id=user_id, session_id=session_id)
-
-@app.post("/chat", response_model=ChatResponse)
-async def chat(req: ChatRequest):
-    user_id = req.user_id or str(uuid())
-    session_id = req.session_id or str(uuid4())
-
-    #save the user message first (non-blocking w/await)
-    try:
-        await save_message_sync(session_id, user_id, "user", req.message)
-    except Exception as e:
-        #log exception; don't prevent reply
-        print("DB write failed (user):", e)
-
-    reply = await run_in_threadpool(engine.chat, req.message, user_id, session_id)
-
-    #save assistant reply
-    try:
-        await save_message_sync(session_id, user_id, "assistant", reply)
-    except Exception as e:
-        print("DB write failed (assistant):", e)
-
-    return ChatResponse (reply=reply, user_id=user_id, session_id=session_id)
 
 @app.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest, background_tasks: BackgroundTasks):
+    """
+    Chat endpoint with automatic database sync.
+    Uses background tasks to sync without blocking the response.
+    """
     user_id = req.user_id or str(uuid4())
     session_id = req.session_id or str(uuid4())
 
-    # get reply synchronously
+    # Get reply synchronously (this is the slow part)
     reply = engine.chat(req.message, user_id=user_id, session_id=session_id)
 
-    # schedule DB writes (runs after response is returned)
+    # Schedule DB writes in background (runs after response is returned)
+    # This doesn't block the user - they get response immediately
     background_tasks.add_task(save_message_sync, session_id, user_id, "user", req.message)
     background_tasks.add_task(save_message_sync, session_id, user_id, "assistant", reply)
 

@@ -2,6 +2,8 @@ import torch
 from model_loader import load_model
 from text_cleaner import clean_response
 from prompt_template import build_prompt  # your MI-style starter
+from db_sync import init_sync_pool, save_message_sync
+import threading
 
 class GPTCoachEngine:
     def __init__(self):
@@ -14,6 +16,13 @@ class GPTCoachEngine:
         # Store separate conversation histories for each user and session
         # Structure: {user_id: {session_id: [messages]}}
         self.sessions = {}
+        # Initialize database connection pool
+        try:
+            init_sync_pool()
+            print("✓ Database connection pool initialized")
+        except Exception as e:
+            print(f"⚠ Warning: Database pool initialization failed: {e}")
+            print("  Chat will work but messages won't be saved to database")
 
     def _make_greeting(self):
         greeting_prompt = (
@@ -66,8 +75,21 @@ class GPTCoachEngine:
             self._init_session(user_id, session_id)
         return self.sessions[user_id][session_id]
 
+    def _save_to_db(self, session_id: str, user_id: str, role: str, text: str):
+        """
+        Helper method to save message to database in background thread.
+        This runs asynchronously and won't block the chat response.
+        """
+        try:
+            save_message_sync(session_id, user_id, role, text)
+        except Exception as e:
+            # Log error but don't crash the application
+            print(f"⚠ Database sync error ({role}): {e}")
+
     def chat(self, user_text: str, user_id: str = "default", session_id: str = "default") -> str:
         """One turn of chat: add user → generate → clean → add assistant → return text.
+        
+        Automatically syncs all messages to PostgreSQL database in background threads.
         
         Args:
             user_text: The user's message
@@ -79,6 +101,13 @@ class GPTCoachEngine:
         
         # Add user message to session history
         messages.append({"role": "user", "content": user_text})
+
+        # Sync user message to database (non-blocking background thread)
+        threading.Thread(
+            target=self._save_to_db,
+            args=(session_id, user_id, "user", user_text),
+            daemon=True
+        ).start()
 
         # Convert messages to chat template format (this is for transferring the user text to computer language)
         chat_text = self.tokenizer.apply_chat_template(
@@ -107,6 +136,13 @@ class GPTCoachEngine:
 
         # Add assistant response to session history
         messages.append({"role": "assistant", "content": response})
+
+                # Sync assistant message to database (non-blocking background thread)
+        threading.Thread(
+            target=self._save_to_db,
+            args=(session_id, user_id, "assistant", response),
+            daemon=True
+        ).start()
 
         return response
     
