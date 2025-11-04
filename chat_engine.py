@@ -27,7 +27,6 @@ class GPTCoachEngine:
         )
 
         inputs = self.tokenizer(chat_text, return_tensors="pt").to(self.model.device)
-        print(inputs)
 
         with torch.no_grad():
             outputs = self.model.generate(
@@ -38,7 +37,6 @@ class GPTCoachEngine:
                 do_sample=True,
                 eos_token_id=self.tokenizer.eos_token_id,
             )
-        print(outputs)
 
         # decode only generated part
         new_tokens = outputs[0][inputs["input_ids"].shape[1]:]
@@ -48,6 +46,7 @@ class GPTCoachEngine:
     # ----- session helpers -----
     def _init_session(self, user_id: str, session_id: str, keep_greeting: bool = True) -> None:
         """Initialize a new session for a user with base prompt and greeting."""
+        
         messages = build_prompt("")
         # Clean up empty user messages if present
         if len(messages) >= 2 and messages[1].get("role") == "user" and messages[1].get("content", "") == "":
@@ -102,13 +101,13 @@ class GPTCoachEngine:
             )
 
         # Decode only new tokens
-        new_tokens = outputs[0][inputs["input_ids"].shape[1]:]
-        response = self.tokenizer.decode(new_tokens, skip_special_tokens=True)
+        new_tokens = outputs[0][inputs["input_ids"].shape[1]:]#from 963 to end
+        response = self.tokenizer.decode(new_tokens, skip_special_tokens=True) #transfer tokens to text
         response = clean_response(response)
 
         # Add assistant response to session history
         messages.append({"role": "assistant", "content": response})
 
-        return response, inputs, outputs
+        return response
     
 

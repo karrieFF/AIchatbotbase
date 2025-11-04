@@ -34,3 +34,34 @@ session_id (short‑term, per chat thread)
 #---------create environment
 C:\Others\EIC-Code\AIchatbotbase>python -m venv venv
 python .\main.py
+python -m pytest tests/test_db_async.py -q #if the file file in another folder
+PS C:\Program Files\PostgreSQL\18\bin> & ".\psql.exe" --version
+
+#install package
+python -m pip insall "package name"
+
+#--------------create a python file
+have it to be a file and then save it as python or other code file.
+
+#--------------easy way to save the file
+ctrl + s > save the file
+
+#----------------------connect database with chatbot
+#Add messages table via migration.
+#Add environment variables for DB credentials.
+#Implement pool in FastAPI startup and shutdown.
+#Insert messages (user and assistant) where you prefer (chat_api.chat recommended).
+#Add logging, retry/queue fallback, and tests.
+#Add retention and security measures.
+
+#add--- environemtn
+PS C:\Others\EIC-Code\AIchatbotbase> $env:Path += ";C:\Program Files\PostgreSQL\18\bin" #add temporary path
+PS C:\Others\EIC-Code\AIchatbotbase> psql -h localhost -U chatbot_user -d postgres -W
+Password: 
+PS C:\Others\EIC-Code\AIchatbotbase> [Environment]::SetEnvironmentVariable('Path', $env:Path + ';C:\Program Files\PostgreSQL\18\bin', 'User') #add permanetely path
+
+#connect to database
+psql -h localhost -U chatbot_user -d postgres -W
+chcp 65001 (get UTF-8, better for international characters)
+\c chatbot_db #connect to the database
+password: chatbot 2025

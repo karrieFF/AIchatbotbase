@@ -4,6 +4,7 @@ def clean_response(text: str) -> str:
     """
     Clean Qwen-style outputs: remove role echoes and system prompt echoes.
     """
+    
     if text is None:
         return ""
 
