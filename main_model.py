@@ -1,4 +1,4 @@
-# main.py
+# main_model.py
 from chat_engine import GPTCoachEngine
 
 def main():

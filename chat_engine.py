@@ -1,9 +1,7 @@
 import torch
-from model_loader import load_model
-from text_cleaner import clean_response
-from prompt_template import build_prompt  # your MI-style starter
-from db_sync import init_sync_pool, save_message_sync
 import threading
+from models import load_model, clean_response, build_prompt
+from database import init_sync_pool, save_message_sync
 
 class GPTCoachEngine:
     def __init__(self):
@@ -137,7 +135,7 @@ class GPTCoachEngine:
         # Add assistant response to session history
         messages.append({"role": "assistant", "content": response})
 
-                # Sync assistant message to database (non-blocking background thread)
+        # Sync assistant message to database (non-blocking background thread)
         threading.Thread(
             target=self._save_to_db,
             args=(session_id, user_id, "assistant", response),

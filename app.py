@@ -1,9 +1,8 @@
 # app.py
 import gradio as gr
-from chat_engine import GPTCoachEngine
-from db_sync import init_sync_pool, close_sync_pool, save_message_sync
 from uuid import uuid4
-import threading
+from chat_engine import GPTCoachEngine
+from database import init_sync_pool, close_sync_pool
 
 # Initialize database pool
 init_sync_pool()
@@ -59,7 +58,7 @@ with gr.Blocks() as demo:
     clear = gr.Button("Clear")
 
     msg.submit(chat_gradio, [msg, chatbot], [chatbot, msg])
-    clear.click(lambda: ([], ""), None, [chatbot, msg])
+    clear.click(clear_chat, None, [chatbot, msg])
 
 if __name__ == "__main__":
     try:

@@ -1,16 +1,18 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
-from chat_engine import GPTCoachEngine
-from db_async import init_db_pool, close_db_pool
-from db_sync import init_sync_pool, close_sync_pool
 from uuid import uuid4
-from starlette.concurrency import run_in_threadpool
-from db_async import save_message
 from contextlib import asynccontextmanager
-from fastapi import BackgroundTasks
-from db_sync import save_message_sync
+from starlette.concurrency import run_in_threadpool
+from chat_engine import GPTCoachEngine
+from database import (
+    init_db_pool,
+    close_db_pool,
+    init_sync_pool,
+    close_sync_pool,
+    save_message_sync
+)
 
 #db_sync
 @asynccontextmanager
