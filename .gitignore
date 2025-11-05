@@ -48,7 +48,17 @@ logs/
 
 # Model cache (HuggingFace)
 .cache/
-models/
+.huggingface/
+# Ignore model weight files (but allow Python code in models/ directory)
+*.bin
+*.safetensors
+*.pt
+*.pth
+*.h5
+*.ckpt
+# Ignore downloaded model directories (not your code)
+model_cache/
+downloaded_models/
 
 # OS
 .DS_Store
