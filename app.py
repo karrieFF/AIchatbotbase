@@ -62,7 +62,11 @@ with gr.Blocks() as demo:
 
 if __name__ == "__main__":
     try:
-        demo.launch(share=True)
+        demo.launch(share=True,
+            server_name="0.0.0.0",
+            server_port=7860,
+            debug=True
+            )
     finally:
         # Cleanup on exit
         close_sync_pool()
