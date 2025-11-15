@@ -14,7 +14,6 @@ def _build_dsn() -> str:
     db = os.environ.get("DB_NAME", "chatbot_db")
     return f"host={host} port={port} dbname={db} user={user} password={password}"
 
-
 def init_sync_pool(minconn: int = 1, maxconn: int = 10) -> None: #async 异步的
     global pg_pool
     if pg_pool is None:
@@ -33,7 +32,9 @@ def save_message_sync(
     text: str, 
     metadata: dict | None = None) -> None:
     if pg_pool is None:
+        print("⚠ ERROR: pg_pool not initialized - cannot save message")
         raise RuntimeError("pg_pool not initialized")
+    
     conn = pg_pool.getconn()
     try:
         with conn.cursor() as cur:
@@ -42,7 +43,15 @@ def save_message_sync(
                 (session_id, user_id, role, text, json.dumps(metadata or {}))
             )
         conn.commit()
-
+        print(f"✓ Saved {role} message to DB (session: {str(session_id)[:8]}...)")
+    except Exception as e:
+        conn.rollback()  # Rollback on error
+        print(f"⚠ ERROR saving {role} message to DB: {e}")
+        print(f"  Session ID: {session_id}, User ID: {user_id}")
+        print(f"  Message text: {text[:50] if text else 'None'}...")
+        import traceback
+        traceback.print_exc()
+        raise  # Re-raise so background task can log it
     finally:
         pg_pool.putconn(conn)
 

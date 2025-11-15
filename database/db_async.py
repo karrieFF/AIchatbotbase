@@ -40,16 +40,3 @@ async def save_message(
     async with pool.acquire() as conn:
         # asyncpg accepts native Python dicts for JSONB, but we convert to JSON string for clarity
         await conn.execute(q, session_id, user_id, role, text, json.dumps(metadata or {}))
-    
-    # conn = pg_pool.getconn()
-    # try:
-    #     with conn.cursor() as cur:
-    #         cur.execute(
-    #             "INSERT INTO messages (session_id, user_id, role, text, metadata) VALUES (%s,%s,%s,%s,%s)",
-    #             (session_id, user_id, role, text, json,dumps(metadata or {}))
-    #         )
-    #     conn.commit()
-
-    # finally:
-    #     pg_pool.putconn(conn)
-

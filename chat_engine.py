@@ -99,14 +99,7 @@ class GPTCoachEngine:
         
         # Add user message to session history
         messages.append({"role": "user", "content": user_text})
-
-        # Sync user message to database (non-blocking background thread)
-        threading.Thread(
-            target=self._save_to_db,
-            args=(session_id, user_id, "user", user_text),
-            daemon=True
-        ).start()
-
+        
         # Convert messages to chat template format (this is for transferring the user text to computer language)
         chat_text = self.tokenizer.apply_chat_template(
             messages,
@@ -134,13 +127,6 @@ class GPTCoachEngine:
 
         # Add assistant response to session history
         messages.append({"role": "assistant", "content": response})
-
-        # Sync assistant message to database (non-blocking background thread)
-        threading.Thread(
-            target=self._save_to_db,
-            args=(session_id, user_id, "assistant", response),
-            daemon=True
-        ).start()
 
         return response
     

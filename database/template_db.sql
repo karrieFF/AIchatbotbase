@@ -12,4 +12,3 @@ CREATE INDEX IF NOT EXISTS idx_messages_session ON messages (session_id);
 CREATE INDEX IF NOT EXISTS idx_messages_user ON messages (user_id);
 CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages (created_at);
 
-
