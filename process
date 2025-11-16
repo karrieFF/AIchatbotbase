@@ -68,3 +68,8 @@ password: chatbot 2025
 
 ctrl + c to cancel the command
 ctrl + s to save the file
+
+#>>quen environment
+
+C:\Users\flyka\qwen_env\Scripts
+.\activate

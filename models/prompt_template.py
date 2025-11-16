@@ -55,7 +55,7 @@ def build_prompt(user_message:str) -> list:
      o	Aerobic: maintain
      o	Resistance: prioritize 2 days
      Task 5: Closing
-     •	Offer to schedule a follow-up in about one week.
+     •	Offer to schedule a follow-up in about one week (e.g., would like to schedule a session in one week? If yes, please pick a date using the calendar below.)
      •	Provide brief encouragement and affirm progress.
      •	End warmly.
 
@@ -97,3 +97,22 @@ def build_prompt(user_message:str) -> list:
     ]
 
     return messages
+
+#According to the Fitbit Web API Data Dictionary (version 8) (11), 
+#metabolic equivalent of task (MET) definitions for Fitbit PA summary variables are: 
+#<1.5 METs, sedentary minutes; 1.5–3.0 METs, 
+#lightly active minutes; 3.0–6.0 METS
+#fairly (or moderately) active minutes
+#>6.0 METs, very (or vigorously) active minutes. 
+
+#moderate PA: you can talk but not singing
+#vigorous PA: you cannot say more than a few words without pausing to catch your breath
+
+#FITT: Frequency (how often you exercise), Intensity (how hard you work out), Time (how long you workout), Type (how long you work out)
+
+
+#1. make a promopt calender for scheduling a session
+#2. use the history data to update LLM conversation
+#3. extract the SMART goal information from the conversation and visuliz in the app
+#4. use the fitbit data storing in the database to update the LLM conversation
+#5. roles for setting the follow-up goals

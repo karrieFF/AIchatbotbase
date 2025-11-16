@@ -157,46 +157,6 @@ def register_user(user: UserCreate):
         db_sync.pg_pool.putconn(conn)
 
 
-@app.get("/greeting")
-def greeting(
-
-    user_id: str = Query(..., description="User ID (optional)"),
-    session_id: Optional[str] = Query(None, description="Session ID (optional)")
-):
-    """
-    Generate greeting when user opens chat interface.
-    Creates a new session and returns the greeting.
-    """
-    # Validate or generate UUIDs - treats "default" as invalid
-    try:
-        UUID(user_id)
-    except ValueError:
-        raise HTTPException (status_code=400, detail="Invalid user_id format")
-
-    # for session id we allow missing/invalid and auto-generate
-    session_id = validate_or_generate_uuid(session_id)
-    
-    # Generate greeting on-demand
-    greeting_text = engine._make_greeting()
-    
-    # Initialize session with greeting
-    engine._init_session(user_id, session_id, keep_greeting=True)
-    
-    # Save greeting to database
-    try:
-        save_message_sync(session_id, user_id, "assistant", greeting_text)
-        print(f"✓ Saved greeting to DB (session: {session_id[:8]}...)")
-    except Exception as e:
-        print(f"⚠ Error saving greeting: {e}")
-        import traceback
-        traceback.print_exc()
-    
-    return {
-        "greeting": greeting_text,
-        "user_id": user_id,
-        "session_id": session_id
-    }
-    
 @app.get("/chat/messages")
 def get_messages(
     session_id: str = Query(..., description="Session ID to retrieve messages for"),

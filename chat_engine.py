@@ -8,8 +8,6 @@ class GPTCoachEngine:
         # load once
         self.tokenizer, self.model = load_model()
         self.model.eval()
-        # make greeting once
-        self.greeting = self._make_greeting()
 
         # Store separate conversation histories for each user and session
         # Structure: {user_id: {session_id: [messages]}}
@@ -22,46 +20,14 @@ class GPTCoachEngine:
             print(f"⚠ Warning: Database pool initialization failed: {e}")
             print("  Chat will work but messages won't be saved to database")
 
-    def _make_greeting(self):
-        greeting_prompt = (
-            "You are a friendly health coach using motivational interviewing coach. "
-            "Introduce yourself briefly (<=30 words) and invite the user to talk about themselves."
-        )
-        greet_messages = [{"role": "system", "content": greeting_prompt}]
-          
-        chat_text = self.tokenizer.apply_chat_template(
-            greet_messages, tokenize=False, add_generation_prompt=True
-        )
-
-        inputs = self.tokenizer(chat_text, return_tensors="pt").to(self.model.device)
-
-        with torch.no_grad():
-            outputs = self.model.generate(
-                **inputs,
-                max_new_tokens=60,
-                temperature=0.3,
-                top_p=0.7, #lower top_p, more creative:0.6-0.8
-                do_sample=True,
-                eos_token_id=self.tokenizer.eos_token_id,
-            )
-
-        # decode only generated part
-        new_tokens = outputs[0][inputs["input_ids"].shape[1]:]
-        text = self.tokenizer.decode(new_tokens, skip_special_tokens=True)
-        return clean_response(text)
-
     # ----- session helpers -----
-    def _init_session(self, user_id: str, session_id: str, keep_greeting: bool = True) -> None:
-        """Initialize a new session for a user with base prompt and greeting."""
-        
+    def _init_session(self, user_id: str, session_id: str) -> None:
+  
         messages = build_prompt("")
         # Clean up empty user messages if present
         if len(messages) >= 2 and messages[1].get("role") == "user" and messages[1].get("content", "") == "":
             messages = [messages[0]]
 
-        if keep_greeting:
-            messages.append({"role": "assistant", "content": self.greeting})
-        
         # Initialize user's session storage if needed
         if user_id not in self.sessions:
             self.sessions[user_id] = {}
