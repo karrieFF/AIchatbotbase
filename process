@@ -69,7 +69,10 @@ password: chatbot 2025
 ctrl + c to cancel the command
 ctrl + s to save the file
 
-#>>quen environment
+#>>quen environment (for GPU)
 
 C:\Users\flyka\qwen_env\Scripts
 .\activate
+
+#>> remote connection using the below address (have the ip for two computers)
+# https://login.tailscale.com/admin/machines

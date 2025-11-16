@@ -8,8 +8,6 @@ import database.db_sync as db
 # if parent_dir not in sys.path:
 #     sys.path.insert(0, parent_dir)
 
-
-
 activity_path = "C:/fitbitdata/202501090110.csv"
 match_path = "C:/fitbitdata/match.csv"
 
