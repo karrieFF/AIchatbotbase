@@ -9,7 +9,7 @@ pg_pool: Optional[ThreadedConnectionPool] = None # The pool can be pool or None,
 def _build_dsn() -> str:
     user = os.environ.get("DB_USER", "chatbot_user")
     password = os.environ.get("DB_PASSWORD", "chatbot2025")
-    host = os.environ.get("DB_HOST", "100.80.102.24") #localhost
+    host = os.environ.get("DB_HOST", "100.80.102.24") # localhost
     port = os.environ.get("DB_PORT", "5432")
     db = os.environ.get("DB_NAME", "chatbot_db")
     return f"host={host} port={port} dbname={db} user={user} password={password}"

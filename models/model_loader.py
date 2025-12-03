@@ -1,4 +1,5 @@
 #model loader, transformer load automatically
+#this if for local models only
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
