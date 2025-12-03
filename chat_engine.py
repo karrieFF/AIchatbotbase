@@ -1,6 +1,9 @@
 import torch
 import threading
 import os
+from dotenv import load_dotenv
+
+load_dotenv() # Load environment variables from .env
 
 from models import load_model, clean_response, build_prompt
 from database import init_sync_pool, save_message_sync
