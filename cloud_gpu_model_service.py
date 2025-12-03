@@ -53,6 +53,18 @@ class ChatRequest(BaseModel):
     temperature: float = 0.4
     top_p: float = 0.7
 
+@app.get("/")
+def root():
+    """Root endpoint - for health checks"""
+    return {
+        "status": "service_running",
+        "model": Model_NAME,
+        "endpoints": {
+            "health": "/health",
+            "generate": "/generate"
+        }
+    }
+
 @app.post("/generate")
 def generate(request: ChatRequest):
     """Generate text from prompt"""
