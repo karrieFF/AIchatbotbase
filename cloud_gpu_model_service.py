@@ -53,7 +53,7 @@ class ChatRequest(BaseModel):
     prompt: Optional[str] = None
     messages: Optional[List[dict]] = None
     max_tokens: int = 80
-    temperature: float = 0.4
+    temperature: float = 0.6
     top_p: float = 0.7
 
 @app.get("/")
