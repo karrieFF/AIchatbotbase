@@ -98,7 +98,18 @@ def health():
 
 if __name__ == "__main__":
     import uvicorn
-    print("\nStarting model service on http://0.0.0.0:8000")
-    print("Your local app can call this at: http://your-cloud-gpu-url/generate")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    import os
+    
+    # Use PORT from environment if available (required for Serverless), otherwise default to 8000
+    port = int(os.getenv("PORT", 8000))
+    
+    print(f"\n{'='*50}")
+    print(f"🚀 Model Service Starting on Port {port}")
+    print(f"{'='*50}")
+    print("1. Go to RunPod Dashboard -> Connect -> HTTP Service (Port 8000)")
+    print("2. Copy that URL (e.g. https://...-8000.proxy.runpod.net)")
+    print("3. Paste it into your local .env file as CLOUD_GPU_URL")
+    print(f"{'='*50}\n")
+    
+    uvicorn.run(app, host="0.0.0.0", port=port)
 
