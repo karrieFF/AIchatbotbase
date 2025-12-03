@@ -47,8 +47,11 @@ model.eval()
 print("✓ Model loaded and ready!")
 print(f"GPU: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'None'}")
 
+from typing import List, Optional
+
 class ChatRequest(BaseModel):
-    prompt: str
+    prompt: Optional[str] = None
+    messages: Optional[List[dict]] = None
     max_tokens: int = 80
     temperature: float = 0.4
     top_p: float = 0.7
@@ -67,8 +70,22 @@ def root():
 
 @app.post("/generate")
 def generate(request: ChatRequest):
-    """Generate text from prompt"""
-    inputs = tokenizer(request.prompt, return_tensors="pt").to(model.device)
+    """Generate text from prompt or messages"""
+    
+    # Handle messages list (auto-formatting)
+    if request.messages:
+        text_input = tokenizer.apply_chat_template(
+            request.messages,
+            tokenize=False,
+            add_generation_prompt=True
+        )
+    # Handle raw prompt (fallback)
+    elif request.prompt:
+        text_input = request.prompt
+    else:
+        return {"error": "Either 'messages' or 'prompt' is required"}
+
+    inputs = tokenizer(text_input, return_tensors="pt").to(model.device)
     
     with torch.no_grad():
         outputs = model.generate(
