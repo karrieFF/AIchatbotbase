@@ -4,7 +4,7 @@ Deploy this on your cloud GPU to serve the model via API.
 Your local app will call this service.
 
 Usage on cloud GPU:
-  1. pip install fastapi uvicorn transformers torch autoawq
+  1. pip install fastapi uvicorn transformers torch accelerate
   2. python cloud_gpu_model_service.py
   3. Or: uvicorn cloud_gpu_model_service:app --host 0.0.0.0 --port 8000
 """
@@ -26,8 +26,10 @@ app.add_middleware(
 )
 
 # Model configuration - change this to your desired model
-Model_NAME = "Qwen/Qwen2.5-14B-Instruct-AWQ"  # For 14B model
-# Model_NAME = "Qwen/Qwen2.5-32B-Instruct-AWQ"  # For 32B model (needs A100 80GB)
+# Note: Using non-AWQ models to avoid compatibility issues
+Model_NAME = "Qwen/Qwen2.5-14B-Instruct"  # For 14B model (regular, not AWQ)
+# Model_NAME = "Qwen/Qwen2.5-7B-Instruct"  # For 7B model (smaller, faster)
+# Model_NAME = "Qwen/Qwen2.5-32B-Instruct"  # For 32B model (needs A100 80GB, no AWQ)
 
 # Load model once at startup
 print(f"Loading model: {Model_NAME}...")
@@ -36,8 +38,9 @@ print("This may take 5-10 minutes on first run (model download)...")
 tokenizer = AutoTokenizer.from_pretrained(Model_NAME)
 model = AutoModelForCausalLM.from_pretrained(
     Model_NAME,
-    torch_dtype=torch.float16,  # Use float16 for GPU
-    device_map="auto"  # Automatically uses GPU
+    torch_dtype=torch.float16,  # Use float16 for GPU (saves memory)
+    device_map="auto",  # Automatically uses GPU
+    low_cpu_mem_usage=True  # Optimize memory usage
 )
 model.eval()
 
