@@ -27,9 +27,9 @@ app.add_middleware(
 
 # Model configuration - change this to your desired model
 # Note: Using non-AWQ models to avoid compatibility issues
-#Model_NAME = "Qwen/Qwen2.5-14B-Instruct"  # For 14B model (regular, not AWQ)
+Model_NAME = "Qwen/Qwen2.5-14B-Instruct"  # For 14B model (regular, not AWQ)
 # Model_NAME = "Qwen/Qwen2.5-7B-Instruct"  # For 7B model (smaller, faster)
-Model_NAME = "Qwen/Qwen2.5-32B-Instruct"  # For 32B model (needs A100 80GB, no AWQ)
+#Model_NAME = "Qwen/Qwen2.5-32B-Instruct"  # For 32B model (needs A100 80GB, no AWQ)
 
 # Load model once at startup
 print(f"Loading model: {Model_NAME}...")
@@ -52,9 +52,10 @@ from typing import List, Optional
 class ChatRequest(BaseModel):
     prompt: Optional[str] = None
     messages: Optional[List[dict]] = None
-    max_tokens: int = 80
-    temperature: float = 0.6
-    top_p: float = 0.7
+    max_tokens: int = 50
+    temperature: float = 0.7
+    top_p: float = 0.9
+#adjust the temparature and top_p for more cretative response. This is conversation and have short tokens (1 token ~= 0.75 English words)
 
 @app.get("/")
 def root():
