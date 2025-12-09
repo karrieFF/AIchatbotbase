@@ -27,9 +27,9 @@ app.add_middleware(
 
 # Model configuration - change this to your desired model
 # Note: Using non-AWQ models to avoid compatibility issues
-Model_NAME = "Qwen/Qwen2.5-14B-Instruct"  # For 14B model (regular, not AWQ)
+#Model_NAME = "Qwen/Qwen2.5-14B-Instruct"  # For 14B model (regular, not AWQ)
 # Model_NAME = "Qwen/Qwen2.5-7B-Instruct"  # For 7B model (smaller, faster)
-# Model_NAME = "Qwen/Qwen2.5-32B-Instruct"  # For 32B model (needs A100 80GB, no AWQ)
+Model_NAME = "Qwen/Qwen2.5-32B-Instruct"  # For 32B model (needs A100 80GB, no AWQ)
 
 # Load model once at startup
 print(f"Loading model: {Model_NAME}...")
