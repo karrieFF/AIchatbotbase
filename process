@@ -30,7 +30,6 @@ session_id (short‑term, per chat thread)
     Analytics/limits: track usage and apply quotas per person.
     Safety checks: verify remembered facts with the user each session.
 
-
 #---------create environment
 C:\Others\EIC-Code\AIchatbotbase>python -m venv venv
 python .\main.py
@@ -76,6 +75,3 @@ C:\Users\flyka\qwen_env\Scripts
 
 #>> remote connection using the below address (have the ip for two computers)
 # https://login.tailscale.com/admin/machines
-
-#>> 'vite' is not recognized as an internal or external command, operable program or batch file.
-# npm install --save-dev vite
