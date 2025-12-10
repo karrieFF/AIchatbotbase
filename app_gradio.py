@@ -1,26 +1,97 @@
+# app.py
 import gradio as gr
-import requests
-import os
+from uuid import uuid4
+from chat_engine import GPTCoachEngine
+from database import init_sync_pool, close_sync_pool
 
-API_URL = os.getenv("API_URL", "http://127.0.0.1:8000/")  # your backend endpoint
+# Initialize database pool
+init_sync_pool()
 
-def chat_fn(message, session_id):
-    try:
-        resp = requests.post(API_URL, json={"message": message, "session_id": session_id})
-        resp.raise_for_status()
-        data = resp.json()
-        return data.get("reply", ""), session_id or data.get("session_id", "")
-    except Exception as e:
-        return f"Error: {e}", session_id
+engine = GPTCoachEngine()
+
+# --- Helpers for unique IDs and State ---
+def get_uuid():
+    """Generate a unique ID."""
+    return str(uuid4())
+
+def get_initial_history():
+    """Return the initial greeting message."""
+    return [{
+        "role": "assistant", 
+        "content": "Hello! I'm here to support you in your journey towards better health, just as you would want me to help someone else. What brings you here today?"
+    }]
+
+def chat_gradio(user_text, history, user_id, session_id):
+    """
+    Chat function that syncs to database automatically.
+    """
+    # Ensure history is a list
+    if history is None:
+        history = []
+    
+    # Don't send empty messages
+    if not user_text.strip():
+        return history, ""
+
+    # Get reply from engine (this automatically saves to DB)
+    # The engine uses session_id to retrieve context from DB.
+    reply = engine.chat(user_text, user_id=user_id, session_id=session_id)
+
+    # Update history
+    history.append({"role": "user", "content": user_text})
+    history.append({"role": "assistant", "content": reply})
+
+    return history, ""
+
+def clear_chat():
+    """Clear chat and generate a NEW session ID to reset context."""
+    new_session_id = get_uuid()
+    return get_initial_history(), "", new_session_id
 
 with gr.Blocks() as demo:
-    gr.Markdown("# Chatbot Coach")
-    sid = gr.Textbox(label="Session ID (optional)", value="")
-    msg = gr.Textbox(label="Message", placeholder="Say hi...")
-    out = gr.Textbox(label="Reply")
-    sid_out = gr.Textbox(label="Session ID (returned)")
+    # State: These create unique IDs for EACH browser tab/user
+    user_id_state = gr.State(get_uuid)
+    session_id_state = gr.State(get_uuid)
 
-    btn = gr.Button("Send")
-    btn.click(chat_fn, inputs=[msg, sid], outputs=[out, sid_out])
+    gr.Markdown("""
+    # 🧠 Physical Activity Coach
+    Welcome! I'm here to help you explore and increase your motivation for physical activity using motivational interviewing.
+    """)
+    
+    chatbot = gr.Chatbot(
+        value=get_initial_history, # Initialize with greeting
+        height=500,
+        label="Conversation"
+    )
+    msg = gr.Textbox(
+        placeholder="Let's start the journey to promote physical activity and improve physical and mental health!",
+        label = "Your Message"
+    )
+    
+    with gr.Row():
+        clear = gr.Button("Clear Chat")
+        submit_btn = gr.Button("Send", variant="primary")
 
-demo.launch()
+    # Define arguments for chat function
+    chat_args = {
+        "fn": chat_gradio,
+        "inputs": [msg, chatbot, user_id_state, session_id_state],
+        "outputs": [chatbot, msg]
+    }
+
+    msg.submit(**chat_args)
+    submit_btn.click(**chat_args)
+    
+    # Clear chat resets UI AND generates a new session_id
+    clear.click(clear_chat, None, [chatbot, msg, session_id_state])
+
+if __name__ == "__main__":
+    try:
+        # demo.launch(
+        # theme=gr.themes.Soft(),
+        # share=True) #, debug=True
+        demo.launch(theme=gr.themes.Soft(), 
+        share=True)
+    finally:
+        # Cleanup on exit
+        close_sync_pool()
