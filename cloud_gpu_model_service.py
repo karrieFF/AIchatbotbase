@@ -52,7 +52,7 @@ from typing import List, Optional
 class ChatRequest(BaseModel):
     prompt: Optional[str] = None
     messages: Optional[List[dict]] = None
-    max_tokens: int = 50
+    max_tokens: int = 500
     temperature: float = 0.7
     top_p: float = 0.9
 #adjust the temparature and top_p for more cretative response. This is conversation and have short tokens (1 token ~= 0.75 English words)

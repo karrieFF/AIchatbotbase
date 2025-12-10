@@ -13,7 +13,7 @@ def load_model():
         model = AutoModelForCausalLM.from_pretrained(
             Model_NAME,
             torch_dtype=torch.float16, # Use float16 for GPU
-            device_map="auto",         # Force GPU usage
+            device_map="auto",       
             trust_remote_code=True
         )
         print("✓ Local model loaded on GPU")

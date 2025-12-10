@@ -86,7 +86,7 @@ class GPTCoachEngine:
                     f"{self.cloud_gpu_url}/generate",
                     json={
                         "messages": messages,  # Send full conversation history
-                        "max_tokens": 50,
+                        "max_tokens": 500,
                         "temperature": 0.7,
                         "top_p": 0.9
                     },
@@ -120,7 +120,7 @@ class GPTCoachEngine:
             with torch.no_grad():
                 outputs = self.model.generate(
                     **inputs,
-                    max_new_tokens=50, 
+                    max_new_tokens=500, 
                     temperature=0.7, 
                     top_p=0.9, 
                     do_sample=True,
