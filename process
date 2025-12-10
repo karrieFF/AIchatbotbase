@@ -76,3 +76,6 @@ C:\Users\flyka\qwen_env\Scripts
 
 #>> remote connection using the below address (have the ip for two computers)
 # https://login.tailscale.com/admin/machines
+
+#>> 'vite' is not recognized as an internal or external command, operable program or batch file.
+# npm install --save-dev vite
