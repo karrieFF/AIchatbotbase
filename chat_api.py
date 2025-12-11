@@ -1,7 +1,7 @@
 from fastapi import FastAPI, BackgroundTasks, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from uuid import uuid4, UUID
 from contextlib import asynccontextmanager
 from starlette.concurrency import run_in_threadpool
@@ -80,6 +80,7 @@ class SessionEndRequest(BaseModel):
 class SessionEndResponse(BaseModel):
     status: str
     session_id: str
+    smart_goals: Optional[Dict[str, Any]] = None
 
 class MessageResponse(BaseModel):
     id: int
@@ -88,6 +89,18 @@ class MessageResponse(BaseModel):
     role: str
     text: str
     created_at: str
+
+# New Pydantic model for SMART Goal Response
+class SMARTGoalResponse(BaseModel):
+    user_id: str
+    session_id: str
+    specific: Optional[str] = None
+    measurable: Optional[str] = None
+    achievable: Optional[str] = None
+    relevant: Optional[str] = None
+    time_bound: Optional[str] = None
+    schedule_time: Optional[str] = None
+    created_at: Optional[str] = None
 
 def get_messages_from_db(session_id: str, limit: int = 50) -> List[dict]:
     """Retrieve messages from database for a given session."""
@@ -265,15 +278,19 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
 
     return ChatResponse(reply=reply, user_id=user_id, session_id=session_id)
 
-#add the end_session endpoint and trigger the extraction
+# ... imports ...
+from extractor import extract_and_store_for_session, store_smart_goals # Added store_smart_goals import
+
+# ...
+
 @app.post("/chat/end_session", response_model=SessionEndResponse)
-def end_session(req: SessionEndRequest, background_tasks: BackgroundTasks):
+def end_session(req: SessionEndRequest, background_tasks: BackgroundTasks): # Added background_tasks
     """
-    Mark a chat session as finished and trigger SMART goal extraction.
-    This schedules extraction as a background task so the client gets
-    a fast response.
+    Mark a chat session as finished.
+    1. Extracts SMART goals immediately (Blocking) -> Returns to UI for Visualization.
+    2. Saves SMART goals to DB in background (Parallel) -> Persist data.
     """
-    # Validate IDs (do not generate new ones here)
+    # Validate IDs
     try:
         UUID(req.user_id)
         UUID(req.session_id)
@@ -283,16 +300,178 @@ def end_session(req: SessionEndRequest, background_tasks: BackgroundTasks):
     if db_sync.pg_pool is None:
         raise HTTPException(status_code=500, detail="Database not available")
 
-    def run_extraction(session_id: str):
-        try:
-            extract_and_store_for_session(session_id)
-        except Exception as e:
-            print(f"⚠ ERROR running SMART goal extraction for session {session_id}: {e}")
+    try:
+        # 1. Run extraction immediately (blocking) but DO NOT save to DB yet
+        extracted_goals = extract_and_store_for_session(req.session_id, save_to_db=False)
+        
+        # 2. Schedule the DB save in the background
+        if extracted_goals:
+            background_tasks.add_task(store_smart_goals, extracted_goals)
 
-    # Trigger extraction after response returns
-    background_tasks.add_task(run_extraction, req.session_id)
+        # 3. Return the result for visualization immediately
+        return SessionEndResponse(
+            status="completed", 
+            session_id=req.session_id,
+            smart_goals=extracted_goals
+        )
+    except Exception as e:
+        print(f"⚠ ERROR running SMART goal extraction for session {req.session_id}: {e}")
+        return SessionEndResponse(status="failed", session_id=req.session_id)
 
-    return SessionEndResponse(status="extraction_scheduled", session_id=req.session_id)
+@app.get("/activities/stats")
+def get_activity_stats(
+    user_id: str = Query(..., description="User ID"),
+    period: str = Query("today", description="Period: today, yesterday, 2_days_ago, week, month")
+    ):
+    if db_sync.pg_pool is None:
+        raise HTTPException(status_code=500, detail="Database not avaliable")
+
+    conn = db_sync.pg_pool.getconn()
+
+    try:
+        with conn.cursor() as cur:
+
+            #determin the data filter
+            if period == "today":
+                date_filter = "activity_date = CURRENT_DATE"
+            elif period == "yesterday":
+                date_filter = "activity_date = CURRENT_DATE - INTERVAL '1 day'"
+            elif period == "2_days_ago":
+                date_filter = "activity_date = CURRENT_DATE - INTERVAL '2 days'"
+            elif period == "week":
+                date_filter = "activity_date >= CURRENT_DATE - INTERVAL '7 days'"
+            elif period == "month":
+                date_filter = "activity_date >= CURRENT_DATE - INTERVAL '30 days'"
+            else:
+                # Default to today if unknown
+                date_filter = "activity_date = CURRENT_DATE"
+
+
+            cur.execute(f"""
+            SELECT
+                COALESCE(SUM(total_steps), 0) as total_steps,
+                COALESCE(SUM(calorie), 0) as total_calories,
+                COALESCE(SUM(sedentary_minutes), 0) as sedentary,
+                COALESCE(SUM(very_active_minutes + fairly_active_minutes), 0) as MVPA
+            From activity_data 
+            WHERE user_id = %s AND {date_filter}"""
+            , (user_id,))
+
+            rows = cur.fetchone()
+
+            return {
+                'MVPA': rows[3],
+                'Sedentary': rows[2],
+                'Steps': rows[0],
+                'Calories': rows[1],
+                "activityCount": 1 if rows[0] > 0 else 0
+            }
+    except Exception as e:
+        print(f"Error fetching activity chart: {e}")
+        return {
+            'MVPA': 0,
+            'Sedentary': 0,
+            'Steps': 0,
+            'Calories': 0,
+            "activityCount": 0
+        }
+    finally:
+        db_sync.pg_pool.putconn(conn)
+    
+@app.get("/activities/chart")
+def get_activity_chart(
+    user_id: str = Query(..., description="User ID"),
+    #period: str = Query("week", description="Period: week, month")
+):
+    if db_sync.pg_pool is None:
+        raise HTTPException(status_code=500, detail="Database not available")
+        
+    conn = db_sync.pg_pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                SELECT 
+                    TO_CHAR(activity_date, 'Dy') as day,
+                    COALESCE(total_steps, 0) as steps,
+                    COALESCE(very_active_minutes + fairly_active_minutes, 0) as MVPA,
+                    COALESCE(calorie, 0) as calories,
+                    COALESCE(sedentary_minutes, 0) as sedentary,
+                    activity_date
+                FROM activity_data
+                WHERE user_id = %s AND activity_date >= CURRENT_DATE - INTERVAL '7 days'
+                ORDER BY activity_date ASC
+            """, (user_id,))
+
+            rows = cur.fetchall()
+
+            #Map to frontend format
+            chart_data = []
+            for row in rows:
+                chart_data.append({
+                    "day": row[0],
+                    "steps": row[1],
+                    "MVPA": row[2],
+                    "calories": row[3],
+                    "sedentary": row[4],
+                    "activity_date": row[5]
+                })
+            return chart_data
+        
+    except Exception as e:
+        print(f"Error fetching activity chart: {e}")
+        return []
+    finally:
+        db_sync.pg_pool.putconn(conn)
+
+# --- NEW ENDPOINT TO FETCH GOALS ---
+@app.get("/goals/smart", response_model=List[SMARTGoalResponse])
+def get_smart_goals(
+    user_id: str = Query(..., description="User ID to fetch goals for"),
+    limit: int = Query(1, description="Number of recent goals to fetch")
+):
+    """
+    Fetch the most recent extracted SMART goals for a user.
+    """
+    if db_sync.pg_pool is None:
+        raise HTTPException(status_code=500, detail="Database not available")
+
+    conn = db_sync.pg_pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT 
+                    user_id, session_id, 
+                    specific, measurable, achievable, relevant, time_bound, 
+                    schedule_time, created_at
+                FROM extraction
+                WHERE user_id = %s
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                (user_id, limit)
+            )
+            rows = cur.fetchall()
+            
+            goals = []
+            for row in rows:
+                goals.append({
+                    "user_id": str(row[0]),
+                    "session_id": str(row[1]),
+                    "specific": row[2],
+                    "measurable": row[3],
+                    "achievable": row[4],
+                    "relevant": row[5],
+                    "time_bound": row[6],
+                    "schedule_time": row[7],
+                    "created_at": row[8].isoformat() if row[8] else None
+                })
+            return goals
+    except Exception as e:
+        print(f"Error fetching goals: {e}")
+        return []
+    finally:
+        db_sync.pg_pool.putconn(conn)
 
 #user profile udpate
 class UserProfileUpdate(BaseModel):

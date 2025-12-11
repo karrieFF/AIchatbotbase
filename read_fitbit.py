@@ -8,7 +8,7 @@ import database.db_sync as db
 # if parent_dir not in sys.path:
 #     sys.path.insert(0, parent_dir)
 
-activity_path = "C:/fitbitdata/202501090110.csv"
+activity_path = "C:/fitbitdata/20251210.csv"
 match_path = "C:/fitbitdata/match.csv"
 
 def import_fitbit_id_map():
@@ -17,6 +17,7 @@ def import_fitbit_id_map():
 
     conn = db.pg_pool.getconn()
     try:
+
         with conn.cursor() as cur:
             cur.execute("SELECT id, email From users;")
             rows = cur.fetchall()

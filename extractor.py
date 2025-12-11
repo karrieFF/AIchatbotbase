@@ -197,13 +197,14 @@ def store_smart_goals(smartgoals: dict):
         db_sync.pg_pool.putconn(conn)
 
 #convert the main to the function
-def extract_and_store_for_session(session_id: str) -> None:
+def extract_and_store_for_session(session_id: str, save_to_db: bool = True) -> dict:
     """
     End-to-end helper:
     - Load messages for a session
     - Run SMART goal extraction
     - Normalize output
-    - Store in the `extraction` table
+    - Store in the `extraction` table (optional)
+    - Return the SMART goals dictionary
     """
     # Ensure DB pool
     if db_sync.pg_pool is None:
@@ -213,7 +214,7 @@ def extract_and_store_for_session(session_id: str) -> None:
 
     if not messages:
         print(f"No messages found for session {session_id}. Skipping extraction.")
-        return
+        return None
 
     print(f"Found {len(messages)} messages for session {session_id}. Running extraction...")
 
@@ -233,7 +234,12 @@ def extract_and_store_for_session(session_id: str) -> None:
     print(f"DEBUG - Smartgoals for session {session_id}: {smartgoals}")
 
     # Store in DB
-    store_smart_goals(smartgoals)
+    if save_to_db:
+        store_smart_goals(smartgoals)
+    else:
+        print(f"DEBUG - Skipping DB save for session {session_id}")
+    
+    return smartgoals
 
 
 if __name__ == "__main__":
