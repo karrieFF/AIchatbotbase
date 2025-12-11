@@ -202,10 +202,12 @@ def get_profile (user_id: str = Query(..., description="User ID")):
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT name, phone, date_of_birth, gender, 
-                height_cm, weight_kg, fitness_level, health_profile
-                FROM user_profiles
-                WHERE user_id = %s
+                SELECT p.name, p.phone, p.date_of_birth, p.gender, 
+                p.height_cm, p.weight_kg, p.fitness_level, p.health_profile, 
+                u.created_at
+                FROM user_profiles p
+                JOIN users u ON p.user_id = u.id
+                WHERE p.user_id = %s
                 """,
                 (user_id,),
             )
@@ -221,6 +223,7 @@ def get_profile (user_id: str = Query(..., description="User ID")):
                 "weight_kg": None,
                 "fitness_level": None,
                 "health_profile": None,
+                "created_at": None
             }
 
         return {
@@ -232,6 +235,7 @@ def get_profile (user_id: str = Query(..., description="User ID")):
             "weight_kg": row[5],
             "fitness_level": row[6],
             "health_profile": row[7],
+            "created_at": row[8].isoformat() if row[8] else None
         }
     finally:
         db_sync.pg_pool.putconn(conn)
