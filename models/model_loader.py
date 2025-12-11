@@ -4,7 +4,7 @@
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
 
-Model_NAME = "Qwen/Qwen2.5-1.5B-Instruct"
+Model_NAME = "Qwen/Qwen2.5-0.5B-Instruct" #Qwen2.5-0.5B 
 
 def load_model():
     print(f"Loading local model: {Model_NAME}...")

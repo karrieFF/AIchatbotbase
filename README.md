@@ -302,6 +302,12 @@ CREATE TABLE messages (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ```
+**Fitbit data usage logic:**
+- read_fitbit: read data from csv file donwload from Fitabase
+- /fitatable/database: store the data into the fitatable
+- /sumfitbit: extract data from fitatable and do a summary
+(add in the frontend): visualize
+
 
 **Indexes:**
 - `idx_messages_session`: On `session_id`

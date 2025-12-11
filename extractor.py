@@ -10,14 +10,17 @@ from database import init_sync_pool, save_message_sync, db_sync
 
 load_dotenv() #load the environment variables from the .env file
 
-#get the messages from the database
 def get_messages_from_db(session_id: str):
+    """
+    Get all messages for a given session in the format expected by the extractor.
+    Returns (user_id, messages_list).
+    """
     if db_sync.pg_pool is None:
         init_sync_pool()
 
     conn = db_sync.pg_pool.getconn()
 
-    try: #try is to make sure the connection is closed even if there is an error
+    try:  # make sure the connection is closed even if there is an error
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -25,15 +28,19 @@ def get_messages_from_db(session_id: str):
                 WHERE session_id = %s
                 ORDER BY created_at ASC
                 """,
-                (session_id,)
+                (session_id,),
             )
             rows = cur.fetchall()
+            if not rows:
+                return None, []
+
             userid = {row[0] for row in rows}
             userid = userid.pop()
             print(f"DEBUG - User ID: {userid}")
-            converstation_data = [{"role":row[1], "content":row[2]} for row in rows] #map this format for another LLM input
-            return userid, converstation_data
-            #print(converstation_data)
+            conversation_data = [
+                {"role": row[1], "content": row[2]} for row in rows
+            ]  # map this format for another LLM input
+            return userid, conversation_data
     finally:
         db_sync.pg_pool.putconn(conn)
 
@@ -144,13 +151,15 @@ def extract_smart_goals(messages:list):
         print(f"⚠ Unexpected error calling cloud GPU: {e}")
         raise
 
-#store this data into the database
 def store_smart_goals(smartgoals: dict):
+    """
+    Store SMART goals into the `extraction` table.
+    """
     if db_sync.pg_pool is None:
         init_sync_pool()
 
     conn = db_sync.pg_pool.getconn()
-    #only update other data is the session_id is the same
+    # only update other data is the session_id is the same
     try:
         with conn.cursor() as cur:
             cur.execute(
@@ -161,21 +170,23 @@ def store_smart_goals(smartgoals: dict):
                 ON CONFLICT (session_id) DO UPDATE SET
                 user_id       = EXCLUDED.user_id,
                 specific      = EXCLUDED.specific,
-                measurable   = EXCLUDED.measurable,
+                measurable    = EXCLUDED.measurable,
                 achievable    = EXCLUDED.achievable,
                 relevant      = EXCLUDED.relevant,
                 time_bound    = EXCLUDED.time_bound,
                 schedule_time = EXCLUDED.schedule_time,
                 created_at    = NOW();
                 """,
-                (smartgoals['user_id'], 
-                smartgoals['session_id'], 
-                smartgoals['specific'], 
-                smartgoals['measurable'], 
-                smartgoals['achievable'], 
-                smartgoals['relevant'], 
-                smartgoals['time_bound'], 
-                smartgoals['schedule_time'])
+                (
+                    smartgoals["user_id"],
+                    smartgoals["session_id"],
+                    smartgoals["specific"],
+                    smartgoals["measurable"],
+                    smartgoals["achievable"],
+                    smartgoals["relevant"],
+                    smartgoals["time_bound"],
+                    smartgoals["schedule_time"],
+                ),
             )
             conn.commit()
             print(f"✓ Stored SMART goals for user {smartgoals['user_id']}")
@@ -185,42 +196,47 @@ def store_smart_goals(smartgoals: dict):
     finally:
         db_sync.pg_pool.putconn(conn)
 
+#convert the main to the function
+def extract_and_store_for_session(session_id: str) -> None:
+    """
+    End-to-end helper:
+    - Load messages for a session
+    - Run SMART goal extraction
+    - Normalize output
+    - Store in the `extraction` table
+    """
+    # Ensure DB pool
+    if db_sync.pg_pool is None:
+        init_sync_pool()
 
-if __name__ == "__main__":
-    import sys
-    
-    session_id = "29c2b0eb-d660-4e91-a566-fd8b90f550d6"
-
-    # Initialize DB pool manually for the script
-    init_sync_pool()
-    
-    # Get real messages from DB
     user_id, messages = get_messages_from_db(session_id)
-    #print(messages)
 
     if not messages:
-        print("No messages found for this session.")
+        print(f"No messages found for session {session_id}. Skipping extraction.")
+        return
 
-    else:
-        print(f"Found {len(messages)} messages.")
+    print(f"Found {len(messages)} messages for session {session_id}. Running extraction...")
 
-        # Run extraction
-        smartgoals = extract_smart_goals(messages)
-        #print("\n--- Extraction Result ---")
-        #print(json.dumps(smartgoals, indent=2))
+    smartgoals = extract_smart_goals(messages)
 
-        #convert the list of smartgoals into a single dictionary
-        if isinstance(smartgoals, list):
-            merged = {}
-            for item in smartgoals:
-                if isinstance(item, dict):
-                    merged.update(item)
-            smartgoals = merged
+    # Convert a list of dicts into a single dictionary if needed
+    if isinstance(smartgoals, list):
+        merged = {}
+        for item in smartgoals:
+            if isinstance(item, dict):
+                merged.update(item)
+        smartgoals = merged
 
-        # add user_id and session_id to the smartgoals
-        smartgoals["user_id"] = user_id
-        smartgoals["session_id"] = session_id
-        print(f"DEBUG - Smartgoals: {smartgoals}")
+    # Attach identifiers
+    smartgoals["user_id"] = user_id
+    smartgoals["session_id"] = session_id
+    print(f"DEBUG - Smartgoals for session {session_id}: {smartgoals}")
 
-        #store the smartgoals intto the database
-        store_smart_goals(smartgoals)
+    # Store in DB
+    store_smart_goals(smartgoals)
+
+
+if __name__ == "__main__":
+    # Example manual run for a hard-coded session (for debugging)
+    demo_session_id = "29c2b0eb-d660-4e91-a566-fd8b90f550d6"
+    extract_and_store_for_session(demo_session_id)

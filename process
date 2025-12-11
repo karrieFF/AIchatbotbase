@@ -75,3 +75,28 @@ C:\Users\flyka\qwen_env\Scripts
 
 #>> remote connection using the below address (have the ip for two computers)
 # https://login.tailscale.com/admin/machines
+
+#token of hugging face API
+
+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
+
+# https://console.runpod.io/ Runpod online GPU for testing large size model
+change the port to 8000
+
+Deploy
+cd /workspace/AIchatbotbase
+pip install fastapi uvicorn transformers torch accelerate hf_transfer
+python cloud_gpu_model_service.py
+
+Copy the http service link to CLOUD_GPU_URL in .env
+
+Run the local file
+
+#step 1
+run in runpod
+
+#step 2 
+run in the local code
+
+#step 3 
+run the App

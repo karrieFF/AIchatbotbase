@@ -6,6 +6,7 @@ from uuid import uuid4, UUID
 from contextlib import asynccontextmanager
 from starlette.concurrency import run_in_threadpool
 from chat_engine import GPTCoachEngine
+from extractor import extract_and_store_for_session #function from the extractor.py
 from database import (
     init_db_pool,
     close_db_pool,
@@ -68,6 +69,16 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     reply: str
     user_id: str
+    session_id: str
+
+
+class SessionEndRequest(BaseModel):
+    user_id: str
+    session_id: str
+
+
+class SessionEndResponse(BaseModel):
+    status: str
     session_id: str
 
 class MessageResponse(BaseModel):
@@ -253,6 +264,35 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
     background_tasks.add_task(save_with_error_handling, session_id, user_id, "assistant", reply)
 
     return ChatResponse(reply=reply, user_id=user_id, session_id=session_id)
+
+#add the end_session endpoint and trigger the extraction
+@app.post("/chat/end_session", response_model=SessionEndResponse)
+def end_session(req: SessionEndRequest, background_tasks: BackgroundTasks):
+    """
+    Mark a chat session as finished and trigger SMART goal extraction.
+    This schedules extraction as a background task so the client gets
+    a fast response.
+    """
+    # Validate IDs (do not generate new ones here)
+    try:
+        UUID(req.user_id)
+        UUID(req.session_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid user_id or session_id format")
+
+    if db_sync.pg_pool is None:
+        raise HTTPException(status_code=500, detail="Database not available")
+
+    def run_extraction(session_id: str):
+        try:
+            extract_and_store_for_session(session_id)
+        except Exception as e:
+            print(f"⚠ ERROR running SMART goal extraction for session {session_id}: {e}")
+
+    # Trigger extraction after response returns
+    background_tasks.add_task(run_extraction, req.session_id)
+
+    return SessionEndResponse(status="extraction_scheduled", session_id=req.session_id)
 
 #user profile udpate
 class UserProfileUpdate(BaseModel):
