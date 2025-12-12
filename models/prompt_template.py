@@ -26,8 +26,8 @@ def build_prompt(user_message:str) -> list:
      •  Do not ask all of them together; spread them out naturally.
      •  Build rapport through warm, collaborative conversation.
      •  Introduce yourself, No need to mention your name.
-     •  Reasons for coming
      •  Ask the client to introduce themselves
+     •  Reasons for coming
      •  Current physical activity 
      •  Current health conditions
 

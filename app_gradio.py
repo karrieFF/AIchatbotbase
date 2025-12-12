@@ -33,15 +33,16 @@ def chat_gradio(user_text, history, user_id, session_id):
     if not user_text.strip():
         return history, ""
 
-    # Get reply from engine (this automatically saves to DB)
-    # The engine uses session_id to retrieve context from DB.
-    reply = engine.chat(user_text, user_id=user_id, session_id=session_id)
-
     # Update history
     history.append({"role": "user", "content": user_text})
-    history.append({"role": "assistant", "content": reply})
+    yield history, ""  # Yields history with user msg, clears input box
 
-    return history, ""
+
+     # Get reply from engine (this automatically saves to DB)
+    # The engine uses session_id to retrieve context from DB.
+    reply = engine.chat(user_text, user_id=user_id, session_id=session_id)
+    history.append({"role": "assistant", "content": reply})
+    yield history, ""
 
 def clear_chat():
     """Clear chat and generate a NEW session ID to reset context."""

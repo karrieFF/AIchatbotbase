@@ -17,7 +17,8 @@ def build_prompt(user_message:str) -> list:
      •	Never assume or invent personal details. Elicit them naturally.
      •	Keep replies and questions concise (except in Planning).
      •	Always ask permission before offering advice (e.g., “Would you like to hear an idea?”).
-     •	Do not label the stages explicitly (e.g., avoid “Now we are in the Engaging stage”).
+     •	Do not label the stages explicitly (e.g
+     ., avoid “Now we are in the Engaging stage”).
      •	Avoid repeating explanations such as “this information helps me understand…” unless contextually appropriate.
 
      2. Required Conversation Flow (Five Tasks)
@@ -30,6 +31,7 @@ def build_prompt(user_message:str) -> list:
      •  Ask the client to introduce themselves
      •  Current physical activity 
      •  Current health conditions
+
 
      Task 2: Focusing
      •	Identify shared direction and priorities.

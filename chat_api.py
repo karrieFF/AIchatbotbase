@@ -15,7 +15,8 @@ from database import (
     save_message_sync
 )
 import database.db_sync as db_sync
-
+from extractor import extract_and_store_for_session, store_smart_goals # Added store_smart_goals import
+from datetime import datetime, timedelta, timezone
 
 #this is to determine if the id is validate
 def validate_or_generate_uuid(value: Optional[str]) -> str:
@@ -59,8 +60,9 @@ app.add_middleware(
 )
 
 #create one chatbot for all users
-engine = GPTCoachEngine ()
+engine = GPTCoachEngine () #we can not create one chatbot for all users
 
+# class is to define the standard format of inside computer communication
 class ChatRequest(BaseModel):
     message: str
     user_id: Optional[str] = None
@@ -101,6 +103,52 @@ class SMARTGoalResponse(BaseModel):
     time_bound: Optional[str] = None
     schedule_time: Optional[str] = None
     created_at: Optional[str] = None
+
+#CREATE GLOBAL id by looking throug the database
+class UserCreate(BaseModel):
+    email:str
+
+class UserResponse(BaseModel):
+    id:str
+    email:str
+
+class NotificationResponse(BaseModel):
+    id: str
+    title: str
+    description: str
+    time: str
+    type: str
+    unread: bool
+
+@app.get("/")
+async def root():
+    return {"message": "Server is running!"} #def root
+
+# --- register functions ---
+@app.post("/users/register", response_model=UserResponse)
+def register_user(user: UserCreate):
+    if db_sync.pg_pool is None:
+        raise RuntimeError("Database not avaliable")
+
+    conn = db_sync.pg_pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, email FROM users WHERE email = %s", (user.email,))
+            row = cur.fetchone()
+            if row:
+                return UserResponse(id=str(row[0]), email=row[1])
+
+            #) otherwise create new users (DB auto-generates id)
+            cur.execute(
+                "INSERT INTO users (email) VALUES (%s) RETURNING id, email",
+                (user.email,),
+            )
+            row = cur.fetchone()
+        conn.commit()
+        return UserResponse(id=str(row[0]), email=row[1])
+    finally:
+        db_sync.pg_pool.putconn(conn)
+
 
 def get_messages_from_db(session_id: str, limit: int = 50) -> List[dict]:
     """Retrieve messages from database for a given session."""
@@ -144,43 +192,6 @@ def get_messages_from_db(session_id: str, limit: int = 50) -> List[dict]:
         db_sync.pg_pool.putconn(conn)
 
 
-@app.get("/")
-async def root():
-    return {"message": "Server is running!"} #def root
-
-#CREATE GLOBAL id by looking throug the database
-class UserCreate(BaseModel):
-    email:str
-
-class UserResponse(BaseModel):
-    id:str
-    email:str
-
-@app.post("/users/register", response_model=UserResponse)
-def register_user(user: UserCreate):
-    if db_sync.pg_pool is None:
-        raise RuntimeError("Database not avaliable")
-
-    conn = db_sync.pg_pool.getconn()
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT id, email FROM users WHERE email = %s", (user.email,))
-            row = cur.fetchone()
-            if row:
-                return UserResponse(id=str(row[0]), email=row[1])
-
-            #) otherwise create new users (DB auto-generates id)
-            cur.execute(
-                "INSERT INTO users (email) VALUES (%s) RETURNING id, email",
-                (user.email,),
-            )
-            row = cur.fetchone()
-        conn.commit()
-        return UserResponse(id=str(row[0]), email=row[1])
-    finally:
-        db_sync.pg_pool.putconn(conn)
-
-
 @app.get("/chat/messages")
 def get_messages(
     session_id: str = Query(..., description="Session ID to retrieve messages for"),
@@ -192,53 +203,6 @@ def get_messages(
     messages = get_messages_from_db(session_id, limit)
     return {"messages": messages}
 
-@app.get("/users/profile")
-def get_profile (user_id: str = Query(..., description="User ID")):
-    if db_sync.pg_pool is None:
-        raise RuntimeError("Database not available")
-    
-    conn = db_sync.pg_pool.getconn()
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT p.name, p.phone, p.date_of_birth, p.gender, 
-                p.height_cm, p.weight_kg, p.fitness_level, p.health_profile, 
-                u.created_at
-                FROM user_profiles p
-                JOIN users u ON p.user_id = u.id
-                WHERE p.user_id = %s
-                """,
-                (user_id,),
-            )
-            row = cur.fetchone()
-
-        if not row:
-            return {
-                "name": None,
-                "phone": None,
-                "date_of_birth": None,
-                "gender": None,
-                "height_cm": None,
-                "weight_kg": None,
-                "fitness_level": None,
-                "health_profile": None,
-                "created_at": None
-            }
-
-        return {
-            "name": row[0],
-            "phone": row[1],
-            "date_of_birth": row[2],
-            "gender": row[3],
-            "height_cm": row[4],
-            "weight_kg": row[5],
-            "fitness_level": row[6],
-            "health_profile": row[7],
-            "created_at": row[8].isoformat() if row[8] else None
-        }
-    finally:
-        db_sync.pg_pool.putconn(conn)
 
 @app.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest, background_tasks: BackgroundTasks):
@@ -282,11 +246,7 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
 
     return ChatResponse(reply=reply, user_id=user_id, session_id=session_id)
 
-# ... imports ...
-from extractor import extract_and_store_for_session, store_smart_goals # Added store_smart_goals import
-
-# ...
-
+# --- SMART goals endpoint ---
 @app.post("/chat/end_session", response_model=SessionEndResponse)
 def end_session(req: SessionEndRequest, background_tasks: BackgroundTasks): # Added background_tasks
     """
@@ -321,6 +281,56 @@ def end_session(req: SessionEndRequest, background_tasks: BackgroundTasks): # Ad
     except Exception as e:
         print(f"⚠ ERROR running SMART goal extraction for session {req.session_id}: {e}")
         return SessionEndResponse(status="failed", session_id=req.session_id)
+
+@app.get("/goals/smart", response_model=List[SMARTGoalResponse])
+def get_smart_goals(
+    user_id: str = Query(..., description="User ID to fetch goals for"),
+    limit: int = Query(1, description="Number of recent goals to fetch")
+):
+    """
+    Fetch the most recent extracted SMART goals for a user.
+    """
+    if db_sync.pg_pool is None:
+        raise HTTPException(status_code=500, detail="Database not available")
+
+    conn = db_sync.pg_pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT 
+                    user_id, session_id, 
+                    specific, measurable, achievable, relevant, time_bound, 
+                    schedule_time, created_at
+                FROM extraction
+                WHERE user_id = %s
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                (user_id, limit)
+            )
+            rows = cur.fetchall()
+            
+            goals = []
+            for row in rows:
+                goals.append({
+                    "user_id": str(row[0]),
+                    "session_id": str(row[1]),
+                    "specific": row[2],
+                    "measurable": row[3],
+                    "achievable": row[4],
+                    "relevant": row[5],
+                    "time_bound": row[6],
+                    "schedule_time": row[7],
+                    "created_at": row[8].isoformat() if row[8] else None
+                })
+            return goals
+    except Exception as e:
+        print(f"Error fetching goals: {e}")
+        return []
+    finally:
+        db_sync.pg_pool.putconn(conn)
+
 
 @app.get("/activities/stats")
 def get_activity_stats(
@@ -427,57 +437,14 @@ def get_activity_chart(
     finally:
         db_sync.pg_pool.putconn(conn)
 
-# --- NEW ENDPOINT TO FETCH GOALS ---
-@app.get("/goals/smart", response_model=List[SMARTGoalResponse])
-def get_smart_goals(
-    user_id: str = Query(..., description="User ID to fetch goals for"),
-    limit: int = Query(1, description="Number of recent goals to fetch")
-):
-    """
-    Fetch the most recent extracted SMART goals for a user.
-    """
-    if db_sync.pg_pool is None:
-        raise HTTPException(status_code=500, detail="Database not available")
 
-    conn = db_sync.pg_pool.getconn()
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT 
-                    user_id, session_id, 
-                    specific, measurable, achievable, relevant, time_bound, 
-                    schedule_time, created_at
-                FROM extraction
-                WHERE user_id = %s
-                ORDER BY created_at DESC
-                LIMIT %s
-                """,
-                (user_id, limit)
-            )
-            rows = cur.fetchall()
-            
-            goals = []
-            for row in rows:
-                goals.append({
-                    "user_id": str(row[0]),
-                    "session_id": str(row[1]),
-                    "specific": row[2],
-                    "measurable": row[3],
-                    "achievable": row[4],
-                    "relevant": row[5],
-                    "time_bound": row[6],
-                    "schedule_time": row[7],
-                    "created_at": row[8].isoformat() if row[8] else None
-                })
-            return goals
-    except Exception as e:
-        print(f"Error fetching goals: {e}")
-        return []
-    finally:
-        db_sync.pg_pool.putconn(conn)
+#-----notifications endpoint-------------
 
-#user profile udpate
+
+
+
+
+# --- put the profile  @put: put something already exists---
 class UserProfileUpdate(BaseModel):
     user_id: str
     name: str | None = None
@@ -488,6 +455,54 @@ class UserProfileUpdate(BaseModel):
     weight_kg: int | None = None
     fitness_level: str | None = None
     health_profile: str | None = None
+
+@app.get("/users/profile")
+def get_profile (user_id: str = Query(..., description="User ID")):
+    if db_sync.pg_pool is None:
+        raise RuntimeError("Database not available")
+    
+    conn = db_sync.pg_pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT p.name, p.phone, p.date_of_birth, p.gender, 
+                p.height_cm, p.weight_kg, p.fitness_level, p.health_profile, 
+                u.created_at
+                FROM user_profiles p
+                JOIN users u ON p.user_id = u.id
+                WHERE p.user_id = %s
+                """,
+                (user_id,),
+            )
+            row = cur.fetchone()
+
+        if not row:
+            return {
+                "name": None,
+                "phone": None,
+                "date_of_birth": None,
+                "gender": None,
+                "height_cm": None,
+                "weight_kg": None,
+                "fitness_level": None,
+                "health_profile": None,
+                "created_at": None
+            }
+
+        return {
+            "name": row[0],
+            "phone": row[1],
+            "date_of_birth": row[2],
+            "gender": row[3],
+            "height_cm": row[4],
+            "weight_kg": row[5],
+            "fitness_level": row[6],
+            "health_profile": row[7],
+            "created_at": row[8].isoformat() if row[8] else None
+        }
+    finally:
+        db_sync.pg_pool.putconn(conn)
 
 @app.put("/users/profile", response_model=UserProfileUpdate)
 def upsert_profile(profile: UserProfileUpdate):
@@ -531,3 +546,52 @@ def upsert_profile(profile: UserProfileUpdate):
         return profile
     finally:
         db_sync.pg_pool.putconn(conn)
+
+#----notifications endpoint-------------
+@app.get("/notifications", response_model=List[NotificationResponse])
+def get_notifications(user_id: str = Query(..., description="User ID")):
+    if db_sync.pg_pool is None:
+        raise HTTPException(status_code=500, detail="Database not available")
+
+    notifications = []
+
+    conn = db_sync.pg_pool.getconn()
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT MAX(created_at) From messages WHERE user_id = %s
+                """ ,
+                (user_id,)
+           
+            )
+            row = cur.fetchone()
+            last_active = row[0] if row else None
+
+            if last_active:
+                #calcualte days since last active
+                now = datetime.now(last_active.tzinfo) if last_active.tzinfo else datetime.now()
+
+                diff = now - last_active
+                days_since = diff.days
+
+                #send reminders if between 7 and 14 days AND iot's after 6 PM #needs to be discussed
+                is_check_window = 7 <= days_since <= 14
+                is_evening = now.hour >= 18
+
+                if is_check_window and is_evening:
+                    notifications.append({
+                        'id': str(uuid4()),
+                        'title': "Time to check in",
+                        'description': "It's been {days_since} days since your last session. Let's see how you're doing.",
+                        'time': now.isoformat(),
+                        'type': "reminder",
+                        'unread': True
+                    }) 
+    except Exception as e:
+        print(f"Error checking notifications: {e}")
+    finally:
+        db_sync.pg_pool.putconn(conn)
+        
+    return notifications
