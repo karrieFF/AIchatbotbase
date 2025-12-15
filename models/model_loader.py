@@ -1,12 +1,11 @@
 #model loader, transformer load automatically
 #this if for local models only
 
-from transformers import AutoModelForCausalLM, AutoTokenizer
-import torch
-
 Model_NAME = "Qwen/Qwen2.5-1.5B-Instruct" #Qwen2.5-0.5B 
 
 def load_model():
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer
     print(f"Loading local model: {Model_NAME}...")
     try:
         tokenizer = AutoTokenizer.from_pretrained(Model_NAME, trust_remote_code=True)
