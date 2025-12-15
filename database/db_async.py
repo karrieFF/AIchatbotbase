@@ -7,6 +7,11 @@ from typing import Optional, Union
 pool: Optional[asyncpg.pool.Pool] = None # The pool can be pool or None, it can be written as Optional[asyncpg.pool.Pool]
 
 def _build_dsn() -> str:
+
+    dsn = os.environ.get("DATABASE_URL")
+    if dsn:
+        return dsn
+        
     user = os.environ.get("DB_USER", "chatbot_user")
     password = os.environ.get("DB_PASSWORD", "chatbot2025")
     host = os.environ.get("DB_HOST", "localhost") # #localhost localhost 100.80.102.24 
