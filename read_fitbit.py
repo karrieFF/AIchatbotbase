@@ -8,7 +8,7 @@ import database.db_sync as db
 # if parent_dir not in sys.path:
 #     sys.path.insert(0, parent_dir)
 
-activity_path = "C:/fitbitdata/20251211.csv"
+activity_path = "C:/fitbitdata/20251213.csv"
 match_path = "C:/fitbitdata/match.csv"
 
 def import_fitbit_id_map():

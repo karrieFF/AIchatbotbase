@@ -5,8 +5,9 @@ from dotenv import load_dotenv
 
 load_dotenv() # Load environment variables from .env
 
-from models import load_model, clean_response, build_prompt
-from database import init_sync_pool, save_message_sync
+from models import load_model, clean_response
+from database import init_sync_pool, save_message_sync, db_sync
+from models.prompt_template import build_prompt, build_prompt_follow
 
 class GPTCoachEngine:
     def __init__(self):
@@ -36,11 +37,101 @@ class GPTCoachEngine:
         except Exception as e:
             print(f"⚠ Warning: Database pool initialization failed: {e}")
             print("  Chat will work but messages won't be saved to database")
+    
+    #get the SMART goal data from the database
+    def get_user_context (self, user_id: str):
+        if not user_id or db_sync.pg_pool is None:
+            return "No data available."
+        
+        context_parts = []
+        conn = db_sync.pg_pool.getconn()
+        try:
+            with conn.cursor() as cur:
+                # Fetch Activity (Fixed SQL commas)
+                cur.execute("""
+                    SELECT 
+                        TO_CHAR(activity_date, 'YYYY-MM-DD'),
+                        COALESCE(total_steps, 0),
+                        COALESCE(very_active_minutes + fairly_active_minutes, 0),
+                        COALESCE(calorie, 0),
+                        COALESCE(sedentary_minutes, 0)
+                    FROM activity_data 
+                    WHERE user_id = %s 
+                    AND activity_date >= CURRENT_DATE - INTERVAL '7 days'
+                    ORDER BY activity_date ASC
+                """, (user_id,))
+                
+                rows = cur.fetchall()
+                if rows:
+                    daily_str = "\n".join([f"- {r[0]}: {r[1]} Steps, {r[2]} MVPA, {r[3]} Cal, {r[4]} Sed" for r in rows])
+                    context_parts.append(f"PAST 7 DAYS ACTIVITY:\n{daily_str}")
+                else:
+                    context_parts.append("PAST ACTIVITY: No recent data found.")
+                
+                # Fetch SMART Goal (Fixed SQL)
+                cur.execute("""
+                    SELECT 
+                        specific, measurable, achievable, relevant, time_bound,
+                        TO_CHAR(created_at, 'YYYY-MM-DD HH24:MI')
+                    FROM extraction 
+                    WHERE user_id = %s 
+                    ORDER BY created_at DESC 
+                    LIMIT 1
+                """, (user_id,))
+                
+                goal = cur.fetchone()
+                if goal:
+                    context_parts.append(f"\nLAST GOAL ({goal[5]}):\nS: {goal[0]}\nM: {goal[1]}\nA: {goal[2]}\nR: {goal[3]}\nT: {goal[4]}")
+                else:
+                    context_parts.append("\nLAST GOAL: None.")
+                    
+        except Exception as e:
+            print(f"⚠ Context Error: {e}")
+            return "Error fetching data"
+        finally:
+            db_sync.pg_pool.putconn(conn)
+        
+        return "\n".join(context_parts)
+        
 
+    def check_if_returning_user (self, user_id:str, session_Id: str ):
+        if not user_id or db_sync.pg_pool is None:
+            return False
+            
+        conn = db_sync.pg_pool.getconn()
+        try:
+            with conn.cursor() as cur:
+                # Check if this user has ANY messages in the system
+                # (We don't filter by session_id!=current because current is empty anyway for new session)
+                cur.execute("SELECT 1 FROM messages WHERE user_id = %s LIMIT 1", (user_id,))
+                return cur.fetchone() is not None
+        except Exception as e:
+            print(f"⚠ Error checking returning user: {e}")
+            return False
+        finally:
+            db_sync.pg_pool.putconn(conn)
+        
     # ----- session helpers -----
     def _init_session(self, user_id: str, session_id: str) -> None:
-  
-        messages = build_prompt("")
+
+        #determine if it is the first conversation or the follow-up conversation
+        is_returning_user = self.check_if_returning_user(user_id, session_id) #self is to call the function inside the class
+
+        if is_returning_user:
+            user_context = self.get_user_context(user_id)
+            #print(f"DEBUG - User context: {user_context}")
+            try:
+                messages = build_prompt_follow(user_context)
+                #print(f"DEBUG - User messages: {messages}")
+            except TypeError:
+                messages = build_prompt_follow("")
+                if messages and messages[0]['role'] == 'system':
+                    messages[0]['content'] += f"\n\nCONTEXT DATA:\n{user_context}"
+
+        else:
+            #use the first conversation promopt
+            messages = build_prompt("")
+
         # Clean up empty user messages if present
         if len(messages) >= 2 and messages[1].get("role") == "user" and messages[1].get("content", "") == "":
             messages = [messages[0]]
@@ -49,6 +140,7 @@ class GPTCoachEngine:
         if user_id not in self.sessions:
             self.sessions[user_id] = {}
         self.sessions[user_id][session_id] = messages
+    
 
     def _get_session_messages(self, user_id: str, session_id: str):
         """Get messages for a user's session, creating it if it doesn't exist."""

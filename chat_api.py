@@ -17,6 +17,18 @@ from database import (
 import database.db_sync as db_sync
 from extractor import extract_and_store_for_session, store_smart_goals # Added store_smart_goals import
 from datetime import datetime, timedelta, timezone
+#send gmail package
+import random
+import smtplib #Simple Mail Transfer Protocol (SMTP) is a protocol used to send emails
+import string
+from email.mime.text import MIMEText
+from datetime import datetime, timedelta, timezone
+
+#---CONFIGURATION -----
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 587
+SENDER_EMAIL = "flyhellowellness@gmail.com"
+SENDER_PASSWORD = "ysbq qezl asab dvcq"
 
 #this is to determine if the id is validate
 def validate_or_generate_uuid(value: Optional[str]) -> str:
@@ -120,35 +132,99 @@ class NotificationResponse(BaseModel):
     type: str
     unread: bool
 
+# registration and verification models
+class OTPRequest(BaseModel):
+    email: str
+
+class VerifyOTPRequest(BaseModel):
+    email: str
+    code: str
+
 @app.get("/")
 async def root():
     return {"message": "Server is running!"} #def root
 
-# --- register functions ---
-@app.post("/users/register", response_model=UserResponse)
-def register_user(user: UserCreate):
+#---------register functions----
+def send_email_otp(email:str, code:str):
+    try:
+        msg = MIMEText(f"Your verification code is: {code}\n\nThis code expires in 10 minutes.")
+        msg['Subject'] = "Your Verification Code"
+        msg['From'] = SENDER_EMAIL
+        msg['To'] = email
+        
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SENDER_EMAIL, SENDER_PASSWORD)
+            server.send_message(msg)
+        return True
+    except Exception as e:
+        print(f"Failed to send email: {e}")
+        return False
+
+@app.post("/auth/request-otp")
+def request_otp(req: OTPRequest):
     if db_sync.pg_pool is None:
-        raise RuntimeError("Database not avaliable")
+        raise HTTPException(status_code=500, detail="Database not available")
+
+    # 1. Generate Code
+    code = ''.join(random.choices(string.digits, k=6))
+    expiration = datetime.now(timezone.utc) + timedelta(minutes=10)
 
     conn = db_sync.pg_pool.getconn()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT id, email FROM users WHERE email = %s", (user.email,))
-            row = cur.fetchone()
-            if row:
-                return UserResponse(id=str(row[0]), email=row[1])
+            # Check if user exists
+            cur.execute("SELECT id FROM users WHERE email = %s", (req.email,))
+            if not cur.fetchone():
+                # Option A: Auto-register user (Easiest for prototype)
+                cur.execute("INSERT INTO users (email) VALUES (%s)", (req.email,))
+                # Option B: Return error if you want strict registration
+                # raise HTTPException(status_code=404, detail="User not found")
 
-            #) otherwise create new users (DB auto-generates id)
-            cur.execute(
-                "INSERT INTO users (email) VALUES (%s) RETURNING id, email",
-                (user.email,),
-            )
-            row = cur.fetchone()
-        conn.commit()
-        return UserResponse(id=str(row[0]), email=row[1])
+            # Update User with Code
+            cur.execute("""
+                UPDATE users 
+                SET verification_code = %s, code_expires_at = %s 
+                WHERE email = %s
+            """, (code, expiration, req.email))
+            conn.commit()
+            
+            # Send Email
+            print(f"DEBUG: OTP for {req.email}: {code}") # Print to console for testing
+            send_email_otp(req.email, code) # Uncomment to use real email
+            
+            return {"message": "Verification code sent"}
     finally:
         db_sync.pg_pool.putconn(conn)
 
+@app.post("/auth/verify-otp")
+def verify_otp(req: VerifyOTPRequest):
+    if db_sync.pg_pool is None:
+        raise HTTPException(status_code=500, detail="Database not available")
+
+    conn = db_sync.pg_pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            # Check Code
+            cur.execute("""
+                SELECT id FROM users 
+                WHERE email = %s 
+                AND verification_code = %s 
+                AND code_expires_at > NOW()
+            """, (req.email, req.code))
+            
+            row = cur.fetchone()
+            
+            if row:
+                user_id = str(row[0])
+                # Clear code so it can't be reused
+                cur.execute("UPDATE users SET verification_code = NULL WHERE id = %s", (user_id,))
+                conn.commit()
+                return {"user_id": user_id, "status": "success"}
+            else:
+                raise HTTPException(status_code=401, detail="Invalid or expired code")
+    finally:
+        db_sync.pg_pool.putconn(conn)
 
 def get_messages_from_db(session_id: str, limit: int = 50) -> List[dict]:
     """Retrieve messages from database for a given session."""
@@ -552,46 +628,114 @@ def upsert_profile(profile: UserProfileUpdate):
 def get_notifications(user_id: str = Query(..., description="User ID")):
     if db_sync.pg_pool is None:
         raise HTTPException(status_code=500, detail="Database not available")
-
-    notifications = []
-
+    
     conn = db_sync.pg_pool.getconn()
-
     try:
         with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT MAX(created_at) From messages WHERE user_id = %s
-                """ ,
-                (user_id,)
-           
-            )
+            # 1. CHECK IF WE NEED TO GENERATE A NEW CHECK-IN REMINDER
+            cur.execute("SELECT MAX(created_at) FROM messages WHERE user_id = %s", (user_id,))
             row = cur.fetchone()
             last_active = row[0] if row else None
-
+            
             if last_active:
-                #calcualte days since last active
                 now = datetime.now(last_active.tzinfo) if last_active.tzinfo else datetime.now()
+                days_since = (now - last_active).days
+                
+                # Logic: 7-14 days since last message AND it's after 6 PM
+                # (You can temporarily set these to True for testing as we discussed)
+                #is_checkin_window = 7 <= days_since <= 14
+                #is_evening = now.hour >= 18 
+    #------------------------testing code------------------
+                is_checkin_window = True
+                is_evening = True
 
-                diff = now - last_active
-                days_since = diff.days
+                if is_checkin_window and is_evening:
+                    # Check if we already created a notification for this user TODAY
+                    cur.execute("""
+                        SELECT id FROM notifications 
+                        WHERE user_id = %s 
+                        AND type = 'check_in' 
+                        AND created_at::date = CURRENT_DATE
+                    """, (user_id,))
+                    
+                    if not cur.fetchone():
+                        # Create the notification in the DB
+                        new_id = str(uuid4())
+                        title = "Time to check in"
+                        desc = f"It's been {days_since} days since your last session. Let's see how you're doing."
+                        
+                        cur.execute("""
+                            INSERT INTO notifications (id, user_id, type, title, description, is_read, is_deleted)
+                            VALUES (%s, %s, 'check_in', %s, %s, FALSE, FALSE)
+                        """, (new_id, user_id, title, desc))
+                        conn.commit()
 
-                #send reminders if between 7 and 14 days AND iot's after 6 PM #needs to be discussed
-                is_check_window = 7 <= days_since <= 14
-                is_evening = now.hour >= 18
+            # 2. FETCH ALL ACTIVE NOTIFICATIONS FROM DB
+            cur.execute("""
+                SELECT id, title, description, created_at, type, is_read
+                FROM notifications
+                WHERE user_id = %s AND is_deleted = FALSE
+                ORDER BY created_at DESC
+            """, (user_id,))
+            
+            rows = cur.fetchall()
+            results = []
+            for row in rows:
+                results.append({
+                    "id": str(row[0]),
+                    "title": row[1],
+                    "description": row[2],
+                    "time": row[3].isoformat() if row[3] else None,
+                    "type": row[4],
+                    "unread": not row[5] # DB stores is_read, frontend expects 'unread'
+                })
+                
+            return results
 
-                if is_check_window and is_evening:
-                    notifications.append({
-                        'id': str(uuid4()),
-                        'title': "Time to check in",
-                        'description': "It's been {days_since} days since your last session. Let's see how you're doing.",
-                        'time': now.isoformat(),
-                        'type': "reminder",
-                        'unread': True
-                    }) 
     except Exception as e:
-        print(f"Error checking notifications: {e}")
+        print(f"Error fetching notifications: {e}")
+        return []
     finally:
         db_sync.pg_pool.putconn(conn)
+
+@app.post("/notifications/{notification_id}/read")
+def read_notification(notification_id: str):
+    if db_sync.pg_pool is None:
+        raise HTTPException(status_code=500, detail="Database not available")
         
-    return notifications
+    conn = db_sync.pg_pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE notifications 
+                SET is_read = TRUE 
+                WHERE id = %s
+            """, (notification_id,))
+            conn.commit()
+        return {"status": "success"}
+    except Exception as e:
+        print(f"Error reading notification: {e}")
+        raise HTTPException(status_code=500, detail="Failed to mark as read")
+    finally:
+        db_sync.pg_pool.putconn(conn)
+
+@app.delete("/notifications/{notification_id}")
+def delete_notification(notification_id: str):
+    if db_sync.pg_pool is None:
+        raise HTTPException(status_code=500, detail="Database not available")
+        
+    conn = db_sync.pg_pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE notifications 
+                SET is_deleted = TRUE 
+                WHERE id = %s
+            """, (notification_id,))
+            conn.commit()
+        return {"status": "success"}
+    except Exception as e:
+        print(f"Error deleting notification: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete")
+    finally:
+        db_sync.pg_pool.putconn(conn)
