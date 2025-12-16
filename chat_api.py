@@ -18,28 +18,31 @@ import database.db_sync as db_sync
 from extractor import extract_and_store_for_session, store_smart_goals # Added store_smart_goals import
 from datetime import datetime, timedelta, timezone
 #send gmail package
+import smtplib #Simple Mail Transfer Protocol (SMTP) is a protocol used to send emails
+from email.mime.text import MIMEText
+
+#RESEND PACKAGE
 import random
-#import smtplib #Simple Mail Transfer Protocol (SMTP) is a protocol used to send emails
 import string
-#from email.mime.text import MIMEText
 from datetime import datetime, timedelta, timezone
 import os
 import requests
 from dotenv import load_dotenv
 
+print("DEBUG: Loading environment variables")
+
 load_dotenv()
 
 #---CONFIGURATION -----
 #---send from google
-#SMTP_SERVER = "smtp.gmail.com"
-#SMTP_PORT = 587
-#SENDER_EMAIL = "flyhellowellness@gmail.com"
-#SENDER_PASSWORD = "ysbq qezl asab dvcq"
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 587
+SENDER_EMAIL = "flyhellowellness@gmail.com"
+SENDER_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "ysbq qezl asab dvcq")  # Use env var, fallback to hardcoded for local
 
 #---send from resend
-RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
-SENDER_EMAIL = 'wellnesscoach@istoorexai.resend.app'
-
+USE_RESEND = os.getenv("RESEND_API_KEY", "")
+SENDER_EMAIL2 = 'onboarding@resend.dev'
 
 #this is to determine if the id is validate
 def validate_or_generate_uuid(value: Optional[str]) -> str:
@@ -72,7 +75,6 @@ async def lifespan(app):
         close_sync_pool()
 
 app = FastAPI(lifespan=lifespan)
-
 
 #CORS (Cross‑Origin Resource Sharing) controls which websites (origins) are allowed to call your API from the browser.
 app.add_middleware(
@@ -156,7 +158,8 @@ async def root():
     return {"message": "Server is running!"} #def root
 
 #---------register functions----
-def send_email_otp(email:str, code:str):
+
+def _send_email_resend(email:str, code:str):
     """Send OTP email using Resend API (works on Render free tier)"""
     try:
         if not RESEND_API_KEY:
@@ -170,7 +173,7 @@ def send_email_otp(email:str, code:str):
                 "Content-Type": "application/json",
             },
             json={
-                "from": SENDER_EMAIL,
+                "from": SENDER_EMAIL2,
                 "to": [email],
                 "subject": "Your Verification Code",
                 "html": f"""
@@ -192,8 +195,37 @@ def send_email_otp(email:str, code:str):
         print(f"Failed to send email: {e}")
         return False
 
+def _send_email_smtp(email:str, code:str):
+    try:
+        msg = MIMEText(f"Your verification code is: {code}\n\nThis code expires in 10 minutes.")
+        msg['Subject'] = "Your Verification Code"
+        msg['From'] = SENDER_EMAIL
+        msg['To'] = email
+
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SENDER_EMAIL, SENDER_PASSWORD)
+            server.send_message(msg)
+        return True
+    except Exception as e:
+        print(f"Failed to send email: {e}")
+        return False
+
+def send_email_otp(email: str, code: str):
+    """
+    Send OTP email using Resend API (production) or SMTP (local).
+    Automatically chooses based on RESEND_API_KEY environment variable.
+    """
+    if USE_RESEND:
+        # Production: Use Resend API (works on Render)
+        return _send_email_resend(email, code)
+    else:
+        # Local: Use Gmail SMTP
+        return _send_email_smtp(email, code)
+
 @app.post("/auth/request-otp")
 def request_otp(req: OTPRequest):
+    #print(f"DEBUG: Request OTP for email: {req.email}")
     if db_sync.pg_pool is None:
         raise HTTPException(status_code=500, detail="Database not available")
 
