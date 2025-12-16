@@ -70,7 +70,7 @@ npm install
 1.  **Create Database**:
     ```sql
     CREATE DATABASE chatbot_db;
-    CREATE USER chatbot_user WITH PASSWORD 'chatbot2025';
+    CREATE USER chatbot_user WITH PASSWORD 'password';
     GRANT ALL PRIVILEGES ON DATABASE chatbot_db TO chatbot_user;
     ```
 2.  **Run SQL Scripts**:
