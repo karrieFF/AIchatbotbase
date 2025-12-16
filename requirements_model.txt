@@ -1,7 +1,7 @@
 # Core ML/AI Libraries
-torch>=2.0.0
-transformers>=4.30.0
-accelerate>=0.26.0
+torch==2.2.2+cu118
+transformers>=4.39
+accelerate>=0.
 
 # Web Interface Testing
 gradio>=4.0
