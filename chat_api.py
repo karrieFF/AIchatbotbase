@@ -32,6 +32,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 #SMTP_PORT = 587
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 SENDER_EMAIL = "flyhellowellness@gmail.com"
 #SENDER_PASSWORD = "ysbq qezl asab dvcq"
 
