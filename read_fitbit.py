@@ -2,13 +2,16 @@ import csv
 import os 
 import sys
 from datetime import datetime
+from dotenv import load_dotenv
 import database.db_sync as db
 
 # parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # if parent_dir not in sys.path:
 #     sys.path.insert(0, parent_dir)
 
-activity_path = "C:/fitbitdata/20251213.csv"
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
+
+activity_path = "C:/fitbitdata/20251214.csv"
 match_path = "C:/fitbitdata/match.csv"
 
 def import_fitbit_id_map():

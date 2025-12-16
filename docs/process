@@ -148,6 +148,7 @@ Environment Variables:
 Name: VITE_API_BASE_URL
 Value: (Paste your Render Backend URL from Phase 2)
 Click Deploy.
+
 Phase 4: Share!
 Vercel will give you a link (e.g., https://activelife-coach.vercel.app).
 Send this link to your testers.
@@ -156,3 +157,10 @@ Since you added PWA, they can "Add to Home Screen" to install it.
 Note on "Free" Tiers:
 Render Free Backend: It goes to "sleep" if no one uses it for 15 minutes. When a tester opens the app, the first request might take 50 seconds to wake up. Tell your testers to be patient on the first login!
 Database: You will need to run your create table SQL commands on the new Cloud Database. You can do this by connecting to the "External Database URL" using a tool like DBeaver or pgAdmin on your laptop.
+
+#files 
+backend; database: Render
+Frontend: vercel
+Cloud GPU: runpod
+Email service: Resend（3,000 emails/month）
+

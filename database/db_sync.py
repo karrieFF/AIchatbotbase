@@ -11,7 +11,7 @@ def _build_dsn() -> str:
     dsn = os.environ.get("DATABASE_URL")
     if dsn:
         return dsn
-        
+
     user = os.environ.get("DB_USER", "chatbot_user")
     password = os.environ.get("DB_PASSWORD", "chatbot2025")
     host = os.environ.get("DB_HOST", "localhost") #  100.80.102.24
@@ -19,7 +19,7 @@ def _build_dsn() -> str:
     db = os.environ.get("DB_NAME", "chatbot_db")
     return f"host={host} port={port} dbname={db} user={user} password={password}"
 
-def init_sync_pool(minconn: int = 1, maxconn: int = 10) -> None: #async 异步的
+def init_sync_pool(minconn: int = 1, maxconn: int = 10) -> None: #async
     global pg_pool
     if pg_pool is None:
         dsn = _build_dsn()

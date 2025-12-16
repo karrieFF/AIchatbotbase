@@ -209,7 +209,6 @@ class GPTCoachEngine:
             inputs = self.tokenizer(chat_text, return_tensors="pt").to(self.model.device)
 
             import torch
-
             # Generate outputs based on inputs (computer language)
             with torch.no_grad():
                 outputs = self.model.generate(

@@ -41,8 +41,8 @@ SENDER_EMAIL = "flyhellowellness@gmail.com"
 SENDER_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "ysbq qezl asab dvcq")  # Use env var, fallback to hardcoded for local
 
 #---send from resend
-RESEND_API_KEY = os.getenv("RESEND_API_KEY")
-SENDER_EMAIL2 = 'onboarding@resend.dev'
+RESEND_API_KEY = os.getenv("RESEND_API_KEY") 
+SENDER_EMAIL2 = 'onboarding@resend.dev' #ActiveLife <onboarding@resend.dev> for showing ActiveLife
 USE_RESEND = bool(RESEND_API_KEY and RESEND_API_KEY.strip())  # True if API key exists and is not empty
 
 #this is to determine if the id is validate
@@ -208,6 +208,7 @@ def _send_email_smtp(email:str, code:str):
             server.login(SENDER_EMAIL, SENDER_PASSWORD)
             server.send_message(msg)
         return True
+        print(msg)
     except Exception as e:
         print(f"Failed to send email: {e}")
         return False
@@ -254,7 +255,7 @@ def request_otp(req: OTPRequest):
             conn.commit()
             
             # Send Email
-            print(f"DEBUG: OTP for {req.email}: {code}") # Print to console for testing
+            #print(f"DEBUG: OTP for {req.email}: {code}") # Print to console for testing
             send_email_otp(req.email, code) # Uncomment to use real email
             
             return {"message": "Verification code sent"}
