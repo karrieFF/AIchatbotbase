@@ -121,7 +121,7 @@ Create Database:
 Click New + -> PostgreSQL.
 Name: activelife-db.
 Plan: Free.
-Copy the "Internal Database URL" (postgresql://activelife_db_user:3U5sf6k6gc1asKd23ze2knTPXh6a5U7o@dpg-d507bbumcj7s73e4i1ng-a/activelife_db) and "External Database URL" (postgresql://activelife_db_user:3U5sf6k6gc1asKd23ze2knTPXh6a5U7o@dpg-d507bbumcj7s73e4i1ng-a.oregon-postgres.render.com/activelife_db).
+Copy the "Internal Database URL"  and "External Database URL" .
 
 
 Create Web Service (Backend):

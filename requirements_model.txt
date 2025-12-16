@@ -1,7 +1,7 @@
 # Core ML/AI Libraries
-torch
-transformers>=4.39
-accelerate
+torch>=2.2.0
+# transformers>=4.39
+# accelerate
 hf_transfer
 
 # Web Interface Testing
