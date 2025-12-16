@@ -27,14 +27,19 @@ import os
 import requests
 from dotenv import load_dotenv
 
-#---CONFIGURATION -----
-#SMTP_SERVER = "smtp.gmail.com"
 load_dotenv()
 
+#---CONFIGURATION -----
+#---send from google
+#SMTP_SERVER = "smtp.gmail.com"
 #SMTP_PORT = 587
-RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
-SENDER_EMAIL = "flyhellowellness@gmail.com"
+#SENDER_EMAIL = "flyhellowellness@gmail.com"
 #SENDER_PASSWORD = "ysbq qezl asab dvcq"
+
+#---send from resend
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+SENDER_EMAIL = 'wellnesscoach@istoorexai.resend.app'
+
 
 #this is to determine if the id is validate
 def validate_or_generate_uuid(value: Optional[str]) -> str:
