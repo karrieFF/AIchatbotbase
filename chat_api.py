@@ -25,6 +25,7 @@ import string
 from datetime import datetime, timedelta, timezone
 import os
 import requests
+from dotenv import load_dotenv
 
 #---CONFIGURATION -----
 #SMTP_SERVER = "smtp.gmail.com"
