@@ -19,16 +19,19 @@ from extractor import extract_and_store_for_session, store_smart_goals # Added s
 from datetime import datetime, timedelta, timezone
 #send gmail package
 import random
-import smtplib #Simple Mail Transfer Protocol (SMTP) is a protocol used to send emails
+#import smtplib #Simple Mail Transfer Protocol (SMTP) is a protocol used to send emails
 import string
-from email.mime.text import MIMEText
+#from email.mime.text import MIMEText
 from datetime import datetime, timedelta, timezone
+import os
+import requests
 
 #---CONFIGURATION -----
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
+#SMTP_SERVER = "smtp.gmail.com"
+RESEND_API_KEY = os.getenv("re_bdebaEgg_KjSpJg5RwqBzkgNTs1ZWpJHb")
+#SMTP_PORT = 587
 SENDER_EMAIL = "flyhellowellness@gmail.com"
-SENDER_PASSWORD = "ysbq qezl asab dvcq"
+#SENDER_PASSWORD = "ysbq qezl asab dvcq"
 
 #this is to determine if the id is validate
 def validate_or_generate_uuid(value: Optional[str]) -> str:
