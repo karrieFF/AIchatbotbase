@@ -165,7 +165,7 @@ def send_email_otp(email:str, code:str):
                 "Content-Type": "application/json",
             },
             json={
-                "from": RESEND_FROM_EMAIL,
+                "from": SENDER_EMAIL,
                 "to": [email],
                 "subject": "Your Verification Code",
                 "html": f"""
