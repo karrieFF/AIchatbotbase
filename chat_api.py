@@ -28,7 +28,8 @@ import requests
 
 #---CONFIGURATION -----
 #SMTP_SERVER = "smtp.gmail.com"
-RESEND_API_KEY = os.getenv("re_bdebaEgg_KjSpJg5RwqBzkgNTs1ZWpJHb")
+load_dotenv()
+
 #SMTP_PORT = 587
 SENDER_EMAIL = "flyhellowellness@gmail.com"
 #SENDER_PASSWORD = "ysbq qezl asab dvcq"
