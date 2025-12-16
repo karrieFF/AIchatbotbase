@@ -1,6 +1,6 @@
 # Core ML/AI Libraries
 torch>=2.2.0
-# transformers>=4.39
+transformers>=4.39
 # accelerate
 hf_transfer
 
