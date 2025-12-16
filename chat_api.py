@@ -149,17 +149,37 @@ async def root():
 
 #---------register functions----
 def send_email_otp(email:str, code:str):
+    """Send OTP email using Resend API (works on Render free tier)"""
     try:
-        msg = MIMEText(f"Your verification code is: {code}\n\nThis code expires in 10 minutes.")
-        msg['Subject'] = "Your Verification Code"
-        msg['From'] = SENDER_EMAIL
-        msg['To'] = email
+        if not RESEND_API_KEY:
+            print(f"⚠ WARNING: RESEND_API_KEY not set. OTP for {email}: {code}")
+            return False
+            
+        response = requests.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {RESEND_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "from": RESEND_FROM_EMAIL,
+                "to": [email],
+                "subject": "Your Verification Code",
+                "html": f"""
+                    <h2>Your Verification Code</h2>
+                    <p>Your verification code is: <strong>{code}</strong></p>
+                    <p>This code expires in 10 minutes.</p>
+                """,
+            },
+            timeout=10  # 10 second timeout
+        )
         
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SENDER_EMAIL, SENDER_PASSWORD)
-            server.send_message(msg)
-        return True
+        if response.status_code == 200:
+            print(f"✓ Email sent to {email}")
+            return True
+        else:
+            print(f"✗ Resend API error: {response.status_code} - {response.text}")
+            return False
     except Exception as e:
         print(f"Failed to send email: {e}")
         return False
