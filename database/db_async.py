@@ -11,6 +11,8 @@ def _build_dsn() -> str:
     dsn = os.environ.get("DATABASE_URL")
     if dsn:
         return dsn
+        #print("DSN found, using cloud database")
+
         
     user = os.environ.get("DB_USER")
     password = os.environ.get("DB_PASSWORD")
