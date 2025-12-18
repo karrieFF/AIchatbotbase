@@ -423,13 +423,16 @@ def end_session(req: SessionEndRequest, background_tasks: BackgroundTasks): # Ad
         print(f"⚠ ERROR running SMART goal extraction for session {req.session_id}: {e}")
         return SessionEndResponse(status="failed", session_id=req.session_id)
 
+#-----------SMART goals visualization endpoint--------------
 @app.get("/goals/smart", response_model=List[SMARTGoalResponse])
 def get_smart_goals(
     user_id: str = Query(..., description="User ID to fetch goals for"),
-    limit: int = Query(1, description="Number of recent goals to fetch")
+    limit: int = Query(1, description="Number of recent goals to fetch"),
+    date: str = Query(None, description="Optional date (YYYY-MM-DD). Returns latest goal on or before this date."),
 ):
     """
     Fetch the most recent extracted SMART goals for a user.
+    If 'date' is provided, return the latest goal whose created_at::date is <= date.
     """
     if db_sync.pg_pool is None:
         raise HTTPException(status_code=500, detail="Database not available")
@@ -437,19 +440,34 @@ def get_smart_goals(
     conn = db_sync.pg_pool.getconn()
     try:
         with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT 
-                    user_id, session_id, 
-                    specific, measurable, achievable, relevant, time_bound, 
-                    schedule_time, created_at
-                FROM extraction
-                WHERE user_id = %s
-                ORDER BY created_at DESC
-                LIMIT %s
-                """,
-                (user_id, limit)
-            )
+            if date:
+                cur.execute(
+                    """
+                    SELECT 
+                        user_id, session_id, 
+                        specific, measurable, achievable, relevant, time_bound, created_at
+                    FROM extraction
+                    WHERE user_id = %s
+                      AND created_at::date <= %s::date
+                    ORDER BY created_at DESC
+                    LIMIT %s
+                    """,
+                    (user_id, date, limit)
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT 
+                        user_id, session_id, 
+                        specific, measurable, achievable, relevant, time_bound, created_at
+                    FROM extraction
+                    WHERE user_id = %s
+                    ORDER BY created_at DESC
+                    LIMIT %s
+                    """,
+                    (user_id, limit)
+                )
+
             rows = cur.fetchall()
             
             goals = []
@@ -462,8 +480,7 @@ def get_smart_goals(
                     "achievable": row[4],
                     "relevant": row[5],
                     "time_bound": row[6],
-                    "schedule_time": row[7],
-                    "created_at": row[8].isoformat() if row[8] else None
+                    "created_at": row[7].isoformat() if row[7] else None
                 })
             return goals
     except Exception as e:
@@ -473,74 +490,76 @@ def get_smart_goals(
         db_sync.pg_pool.putconn(conn)
 
 
-@app.get("/activities/stats")
-def get_activity_stats(
-    user_id: str = Query(..., description="User ID"),
-    period: str = Query("today", description="Period: today, yesterday, 2_days_ago, week, month")
-    ):
-    if db_sync.pg_pool is None:
-        raise HTTPException(status_code=500, detail="Database not avaliable")
+@app.get("/activity/stats")
+async def get_activity_stats(user_id: str, start_date:str = None, end_date:str = None):
+    # Logic:
+    # 1. If NO dates: Default to single day = CURRENT_DATE
+    # 2. If ONLY start: Default end = start (Single Day mode)
+    # 3. If BOTH: Use Range
+    if not start_date:
+        start_date = "CURRENT_DATE"
+        end_date = "CURRENT_DATE"
+    else:
+        start_date = f"'{start_date}'"
+
+    if not end_date:
+        end_date = start_date #single day
+    else:
+        end_date = f"'{end_date}'" #range
 
     conn = db_sync.pg_pool.getconn()
-
     try:
         with conn.cursor() as cur:
-
-            #determin the data filter
-            if period == "today":
-                date_filter = "activity_date = CURRENT_DATE"
-            elif period == "yesterday":
-                date_filter = "activity_date = CURRENT_DATE - INTERVAL '1 day'"
-            elif period == "2_days_ago":
-                date_filter = "activity_date = CURRENT_DATE - INTERVAL '2 days'"
-            elif period == "week":
-                date_filter = "activity_date >= CURRENT_DATE - INTERVAL '7 days'"
-            elif period == "month":
-                date_filter = "activity_date >= CURRENT_DATE - INTERVAL '30 days'"
-            else:
-                # Default to today if unknown
-                date_filter = "activity_date = CURRENT_DATE"
-
-
             cur.execute(f"""
-            SELECT
-                COALESCE(SUM(total_steps), 0) as total_steps,
-                COALESCE(SUM(calorie), 0) as total_calories,
-                COALESCE(SUM(sedentary_minutes), 0) as sedentary,
-                COALESCE(SUM(very_active_minutes + fairly_active_minutes), 0) as MVPA
-            From activity_data 
-            WHERE user_id = %s AND {date_filter}"""
-            , (user_id,))
-
-            rows = cur.fetchone()
-
-            return {
-                'MVPA': rows[3],
-                'Sedentary': rows[2],
-                'Steps': rows[0],
-                'Calories': rows[1],
-                "activityCount": 1 if rows[0] > 0 else 0
-            }
-    except Exception as e:
-        print(f"Error fetching activity chart: {e}")
-        return {
-            'MVPA': 0,
-            'Sedentary': 0,
-            'Steps': 0,
-            'Calories': 0,
-            "activityCount": 0
-        }
+                SELECT 
+                    COALESCE(total_steps, 0) as steps,
+                    COALESCE(very_active_minutes + fairly_active_minutes, 0) as mvpa,
+                    COALESCE(sedentary_minutes, 0) as sedentary,
+                    COALESCE(calorie, 0) as calories
+                FROM activity_data 
+                WHERE user_id = %s 
+                AND activity_date >= {start_date}
+                AND activity_date <= {end_date}
+            """, (user_id,))
+            
+            row = cur.fetchone()
+            
+            if row:
+                return {
+                    "Steps": row[0],
+                    "MVPA": row[1],
+                    "Sedentary": row[2],
+                    "Calories": row[3],
+                    "activityCount": 0 # Placeholder if you don't track count
+                }
+            else:
+                # Return zeros if no data found for that date
+                return {
+                    "Steps": 0, "MVPA": 0, "Sedentary": 0, "Calories": 0, "activityCount": 0
+                }
     finally:
         db_sync.pg_pool.putconn(conn)
     
 @app.get("/activities/chart")
 def get_activity_chart(
     user_id: str = Query(..., description="User ID"),
-    #period: str = Query("week", description="Period: week, month")
+    start_date: str = Query(None, description="Start date YYYY-MM-DD"),
+    end_date: str = Query(None, description="End date YYYY-MM-DD"),
 ):
     if db_sync.pg_pool is None:
         raise HTTPException(status_code=500, detail="Database not available")
-        
+
+    # Default window: last 7 days (including today)
+    if not end_date:
+        end_date_sql = "CURRENT_DATE"
+    else:
+        end_date_sql = f"'{end_date}'"
+
+    if not start_date:
+        start_date_sql = "CURRENT_DATE - INTERVAL '6 days'"
+    else:
+        start_date_sql = f"'{start_date}'"
+
     conn = db_sync.pg_pool.getconn()
     try:
         with conn.cursor() as cur:
@@ -553,7 +572,9 @@ def get_activity_chart(
                     COALESCE(sedentary_minutes, 0) as sedentary,
                     activity_date
                 FROM activity_data
-                WHERE user_id = %s AND activity_date >= CURRENT_DATE - INTERVAL '7 days'
+                WHERE user_id = %s 
+                  AND activity_date >= {start_date_sql}
+                  AND activity_date <= {end_date_sql}
                 ORDER BY activity_date ASC
             """, (user_id,))
 

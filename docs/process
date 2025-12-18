@@ -164,3 +164,6 @@ Frontend: vercel
 Cloud GPU: runpod
 Email service: Resend（3,000 emails/month）
 
+#how to call API and get the data from the database; show all the contents
+Invoke-RestMethod "http://127.0.0.1:8000/goals/smart?user_id=dac50355-5dcb-4376-aa00-0f5bde2e2f11&limit=50" |
+  ConvertTo-Json -Depth 10
