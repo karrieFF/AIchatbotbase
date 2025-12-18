@@ -159,7 +159,6 @@ async def root():
     return {"message": "Server is running!"} #def root
 
 #---------register functions----
-
 def _send_email_resend(email:str, code:str):
     """Send OTP email using Resend API (works on Render free tier)"""
     try:
