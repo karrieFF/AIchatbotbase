@@ -12,11 +12,11 @@ def _build_dsn() -> str:
     if dsn:
         return dsn
         
-    user = os.environ.get("DB_USER", "chatbot_user")
-    password = os.environ.get("DB_PASSWORD", "chatbot2025")
-    host = os.environ.get("DB_HOST", "localhost") # #localhost localhost 100.80.102.24 
-    port = os.environ.get("DB_PORT", "5432")
-    db = os.environ.get("DB_NAME", "chatbot_db")
+    user = os.environ.get("DB_USER")
+    password = os.environ.get("DB_PASSWORD")
+    host = os.environ.get("DB_HOST")
+    port = os.environ.get("DB_PORT")
+    db = os.environ.get("DB_NAME")
     return f"postgresql://{user}:{password}@{host}:{port}/{db}"
     
 async def init_db_pool(min_size: int = 1, max_size: int = 10): #async 异步的

@@ -1,4 +1,13 @@
-# app.py
+import sys
+import os
+
+# 1. Add the parent directory (AIchatbotbase) to the Python path
+# This allows imports like 'from chat_engine import ...' to work
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
 import gradio as gr
 from uuid import uuid4
 from chat_engine import GPTCoachEngine
