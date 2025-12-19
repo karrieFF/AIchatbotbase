@@ -42,7 +42,7 @@ SENDER_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "ysbq qezl asab dvcq")  # Use 
 
 #---send from resend
 RESEND_API_KEY = os.getenv("RESEND_API_KEY") 
-SENDER_EMAIL2 = 'onboarding@resend.dev' #ActiveLife <onboarding@resend.dev> for showing ActiveLife
+SENDER_EMAIL2 = 'noreply@activehappiness.org' #ActiveLife <onboarding@resend.dev> for showing ActiveLife
 USE_RESEND = bool(RESEND_API_KEY and RESEND_API_KEY.strip())  # True if API key exists and is not empty
 
 #this is to determine if the id is validate
