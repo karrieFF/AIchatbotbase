@@ -1,4 +1,4 @@
-# AI Chatbot Base - Physical Activity Coach
+# AI Chatbot Based - Physical Activity Coach
 
 A conversational AI chatbot system built with PyTorch and Transformers, designed to provide motivational interviewing-based health coaching for physical activity. The system supports a React PWA frontend and a FastAPI REST API, with automatic PostgreSQL database synchronization for conversation history.
 
@@ -19,7 +19,9 @@ A conversational AI chatbot system built with PyTorch and Transformers, designed
 - **Cloud Deployment**: 
   - Frontend: Render (Static Site)
   - Backend: Render (Web Service)
+  - Database: RunPod (postgres)
   - Model: RunPod (for larger models)
+  
 
 ## 📁 Project Structure
 
@@ -72,7 +74,8 @@ npm install
 
 ### 2. Database Setup
 
-1.  **Create Database**:
+Option 1 Local database
+1.  **Create LocaDatabase**:
     ```sql
     CREATE DATABASE chatbot_db;
     CREATE USER chatbot_user WITH PASSWORD 'password';
@@ -80,6 +83,9 @@ npm install
     ```
 2.  **Run SQL Scripts**:
     Execute the SQL scripts in `database/` to create tables (`users`, `messages`, `activity_data`, `notifications`, `goals`, etc.).
+
+Option 2 Cloud Database
+DATABASE_URL="postgresql://user_name:password.render.com/database_name"
 
 ### 3. Environment Variables (.env)
 
@@ -90,13 +96,8 @@ Create a `.env` file in `AIchatbotbase/`:
 DATABASE_URL=postgresql://chatbot_user:password@address
 
 # Email Configuration (To send to ANY email)
-
+#Option 1. Resend API
 RESEND_API_KEY=re_123456789
-
-# Option 1: Resend API (Recommended for production)
-1）Get a domain from cloudflare: https://www.cloudflare.com/products/registrar/
-2) Verify a domain at https://resend.com/domains
-
 RESEND_SENDER_EMAIL=noreply@activehappiness.org
 
 # Option 2: Gmail SMTP (For local development)
@@ -111,15 +112,7 @@ CLOUD_GPU_URL=https://your-runpod-id-8000.proxy.runpod.net/v1
 
 **Run Backend (API)**
 
-First, activate your virtual environment (e.g., `qwen_env`):
-
-```powershell
-# Windows
-.\qwen_env\Scripts\activate
-# OR specific path: C:\Users\flyka\qwen_env\Scripts\activate
-```
-
-Then run the API (Choose one method):
+RUN the API (Choose one method):
 
 ```bash
 # Method 1: Direct Python
@@ -294,6 +287,7 @@ python read_fitbit.py
 - **Never commit .env files**.
 - Use **Resend** for emails in production (port 587 is blocked on most free cloud tiers).
 - The `read_fitbit.py` script requires `load_dotenv` to work with cloud databases.
+- Add `.env` (and `.env.*`) to `.gitignore`. If a `.env` was ever committed, rotate the secrets and remove it from history (`git rm --cached .env`; for full history cleanup use `git filter-repo --path .env --invert-paths` or BFG, then force-push).
 
 ## 👥 Authors
 
