@@ -112,7 +112,7 @@ CLOUD_GPU_URL=https://your-runpod-id-8000.proxy.runpod.net/v1
 
 **Run Backend (API)**
 
-RUN the API (Choose one method):
+RUN git the API (Choose one method):
 
 ```bash
 # Method 1: Direct Python
