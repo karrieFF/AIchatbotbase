@@ -11,9 +11,8 @@ def _build_dsn() -> str:
     dsn = os.environ.get("DATABASE_URL")
     if dsn:
         return dsn
-        #print("DSN found, using cloud database")
+        #print("DSN found, using clgit pulloud database")
 
-        
     user = os.environ.get("DB_USER")
     password = os.environ.get("DB_PASSWORD")
     host = os.environ.get("DB_HOST")

@@ -89,15 +89,15 @@ Create a `.env` file in `AIchatbotbase/`:
 # Database (Example Format)
 DATABASE_URL=postgresql://chatbot_user:password@address
 
-# Email Configuration
-# Option 1: Resend API (Recommended for production)
+# Email Configuration (To send to ANY email)
+
 RESEND_API_KEY=re_123456789
-# To send to ANY email: Verify a domain at https://resend.com/domains and set:
-RESEND_SENDER_EMAIL=noreply@yourdomain.com
-# Or use format: RESEND_SENDER_EMAIL="ActiveLife <noreply@yourdomain.com>"
-# 
-# If RESEND_SENDER_EMAIL is not set, defaults to "onboarding@resend.dev" (testing mode)
-# Testing mode only allows sending to verified email addresses
+
+# Option 1: Resend API (Recommended for production)
+1）Get a domain from cloudflare: https://www.cloudflare.com/products/registrar/
+2) Verify a domain at https://resend.com/domains
+
+RESEND_SENDER_EMAIL=noreply@activehappiness.org
 
 # Option 2: Gmail SMTP (For local development)
 # SENDER_EMAIL=your-email@gmail.com
