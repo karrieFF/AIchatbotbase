@@ -1,6 +1,6 @@
-
 import threading
 import os
+import requests  # Added for RunPod API calls
 from dotenv import load_dotenv
 
 load_dotenv() # Load environment variables from .env
@@ -11,17 +11,18 @@ from models.prompt_template import build_prompt, build_prompt_follow
 
 class GPTCoachEngine:
     def __init__(self):
-        # Check if cloud GPU URL is provided
-        self.cloud_gpu_url = os.getenv("CLOUD_GPU_URL", "").strip().rstrip("/")
+        # 1. Check for RunPod Serverless Credentials
+        self.runpod_api_key = os.getenv("RUNPOD_API_KEY")
+        self.runpod_endpoint_id = os.getenv("RUNPOD_ENDPOINT_ID")
         
-        if self.cloud_gpu_url:
-            # Use cloud GPU model service
-            self.use_cloud_gpu = True
-            print(f"✓ Using cloud GPU model service: {self.cloud_gpu_url}")
-            # No local tokenizer needed - cloud handles everything!
+        # Determine Execution Mode
+        if self.runpod_api_key and self.runpod_endpoint_id:
+            self.mode = "runpod"
+            print(f"✓ Using RunPod Serverless: {self.runpod_endpoint_id}")
+            
         else:
-            # Use local model
-            self.use_cloud_gpu = False
+            self.mode = "local"
+            # Load local model only if NO cloud credentials
             self.tokenizer, self.model = load_model()
             self.model.eval()
             print("✓ Using local model")
@@ -102,7 +103,6 @@ class GPTCoachEngine:
         try:
             with conn.cursor() as cur:
                 # Check if this user has ANY messages in the system
-                # (We don't filter by session_id!=current because current is empty anyway for new session)
                 cur.execute("SELECT 1 FROM messages WHERE user_id = %s LIMIT 1", (user_id,))
                 return cur.fetchone() is not None
         except Exception as e:
@@ -115,14 +115,12 @@ class GPTCoachEngine:
     def _init_session(self, user_id: str, session_id: str) -> None:
 
         #determine if it is the first conversation or the follow-up conversation
-        is_returning_user = self.check_if_returning_user(user_id, session_id) #self is to call the function inside the class
+        is_returning_user = self.check_if_returning_user(user_id, session_id) 
 
         if is_returning_user:
             user_context = self.get_user_context(user_id)
-            #print(f"DEBUG - User context: {user_context}")
             try:
                 messages = build_prompt_follow(user_context)
-                #print(f"DEBUG - User messages: {messages}")
             except TypeError:
                 messages = build_prompt_follow("")
                 if messages and messages[0]['role'] == 'system':
@@ -156,7 +154,6 @@ class GPTCoachEngine:
         try:
             save_message_sync(session_id, user_id, role, text)
         except Exception as e:
-            # Log error but don't crash the application
             print(f"⚠ Database sync error ({role}): {e}")
 
     def chat(self, user_text: str, user_id: str = "default", session_id: str = "default") -> str:
@@ -170,60 +167,69 @@ class GPTCoachEngine:
         # Add user message to session history
         messages.append({"role": "user", "content": user_text})
         
-        if self.use_cloud_gpu:
-            # Call cloud GPU model service with RAW messages (no local tokenization)
-            try:
-                import requests
-                api_response = requests.post(
-                    f"{self.cloud_gpu_url}/generate",
-                    json={
-                        "messages": messages,  # Send full conversation history
+        response = ""
+
+        try:
+            if self.mode == "runpod":
+                # --- RUNPOD SERVERLESS MODE ---
+                url = f"https://api.runpod.ai/v2/{self.runpod_endpoint_id}/runsync"
+                
+                headers = {
+                    "Authorization": f"Bearer {self.runpod_api_key}",
+                    "Content-Type": "application/json"
+                }
+                
+                # Format payload for the handler function
+                payload = {
+                    "input": {
+                        "messages": messages,
                         "max_tokens": 500,
                         "temperature": 0.7,
                         "top_p": 0.9
-                    },
-                    timeout=60
+                    }
+                }
+
+                # 90s timeout for serverless sync execution
+                api_res = requests.post(url, json=payload, headers=headers, timeout=90)
+                api_res.raise_for_status()
+                data = api_res.json()
+
+                if "output" in data:
+                    raw_response = data["output"].get("response", "")
+                    response = clean_response(raw_response)
+                elif "error" in data:
+                    print(f"RunPod Error: {data['error']}")
+                    response = "I'm having trouble thinking right now. (GPU Error)"
+                else:
+                    response = "I'm having trouble thinking right now. (Unknown Response)"
+
+            else:
+                # --- LOCAL MODE ---
+                chat_text = self.tokenizer.apply_chat_template(
+                    messages,
+                    tokenize=False,
+                    add_generation_prompt=True,
                 )
-                api_response.raise_for_status()
-                result = api_response.json()
-                response_text = result.get("response", "")
-                response = clean_response(response_text)
-            except requests.exceptions.RequestException as e:
-                print(f"⚠ Error calling cloud GPU: {e}")
-                if hasattr(e, 'response') and e.response is not None:
-                    print(f"  Response: {e.response.text[:200]}")
-                raise
-            except Exception as e:
-                print(f"⚠ Unexpected error calling cloud GPU: {e}")
-                raise
-        else:
-            # Use local model (existing code)
-            
-            # Convert messages to chat template format
-            chat_text = self.tokenizer.apply_chat_template(
-                messages,
-                tokenize=False,
-                add_generation_prompt=True,
-            )
+                import torch
+                inputs = self.tokenizer(chat_text, return_tensors="pt").to(self.model.device)
+                
+                with torch.no_grad():
+                    outputs = self.model.generate(
+                        **inputs,
+                        max_new_tokens=500, 
+                        temperature=0.7, 
+                        top_p=0.9, 
+                        do_sample=True,
+                        eos_token_id=self.tokenizer.eos_token_id,
+                    )
 
-            inputs = self.tokenizer(chat_text, return_tensors="pt").to(self.model.device)
+                new_tokens = outputs[0][inputs["input_ids"].shape[1]:]
+                response = self.tokenizer.decode(new_tokens, skip_special_tokens=True)
+                response = clean_response(response)
 
-            import torch
-            # Generate outputs based on inputs (computer language)
-            with torch.no_grad():
-                outputs = self.model.generate(
-                    **inputs,
-                    max_new_tokens=500, 
-                    temperature=0.7, 
-                    top_p=0.9, 
-                    do_sample=True,
-                    eos_token_id=self.tokenizer.eos_token_id,
-                )
-
-            # Decode only new tokens
-            new_tokens = outputs[0][inputs["input_ids"].shape[1]:]
-            response = self.tokenizer.decode(new_tokens, skip_special_tokens=True)
-            response = clean_response(response)
+        except Exception as e:
+            print(f"⚠ Inference Error: {e}")
+            response = "I apologize, but I'm having trouble connecting to my brain right now."
 
         # Add assistant response to session history
         messages.append({"role": "assistant", "content": response})

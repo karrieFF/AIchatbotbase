@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Install Python deps
+# Install Python deps (Ensure 'runpod' is in requirements_model.txt!)
 COPY requirements_model.txt .
 RUN pip3 install --no-cache-dir -r requirements_model.txt
 
@@ -15,4 +15,4 @@ RUN pip3 install --no-cache-dir -r requirements_model.txt
 COPY . .
 
 # RunPod serverless entrypoint
-CMD ["python3", "handler.py"]
+CMD ["python3", "-u", "handler.py"]
