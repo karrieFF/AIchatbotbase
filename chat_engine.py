@@ -172,7 +172,7 @@ class GPTCoachEngine:
         try:
             if self.mode == "runpod":
                 # --- RUNPOD SERVERLESS MODE ---
-                url = f"https://api.runpod.ai/v2/{self.runpod_endpoint_id}/runsync"
+                url = f"https://api.runpod.ai/v2/{self.runpod_endpoint_id}/run"
                 
                 headers = {
                     "Authorization": f"Bearer {self.runpod_api_key}",
