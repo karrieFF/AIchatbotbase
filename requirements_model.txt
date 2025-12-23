@@ -6,3 +6,4 @@ accelerate>=0.24.0
 fastapi
 uvicorn
 hf_transfer
+runpod
