@@ -167,3 +167,13 @@ Email service: Resend（3,000 emails/month）
 #how to call API and get the data from the database; show all the contents
 Invoke-RestMethod "http://127.0.0.1:8000/goals/smart?user_id=dac50355-5dcb-4376-aa00-0f5bde2e2f11&limit=50" |
   ConvertTo-Json -Depth 10
+
+#-----navigate to cloud database
+psql "DATABASE_URL" #enter the database
+\q #exist the database
+\c chatbot_user_124h #connect with a specific database
+\l #overview of the database
+\dt #overview of all the tables
+SELECT * FROM table #select all the data from database
+\x
+TRUNCATE TABLE messages, extraction CASCADE; # clear messages AND related data
