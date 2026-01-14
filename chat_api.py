@@ -34,15 +34,15 @@ print("DEBUG: Loading environment variables")
 load_dotenv()
 
 #---CONFIGURATION -----
-#---send from google
+#---send from google （for local testing）
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 SENDER_EMAIL = "flyhellowellness@gmail.com"
 SENDER_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "ysbq qezl asab dvcq")  # Use env var, fallback to hardcoded for local
 
-#---send from resend
+#---send from resend (for production)
 RESEND_API_KEY = os.getenv("RESEND_API_KEY") 
-SENDER_EMAIL2 = 'noreply@activehappiness.org' #ActiveLife <onboarding@resend.dev> for showing ActiveLife
+SENDER_EMAIL2 = 'noreply@activehappiness.org' #ActiveLife <onboarding@resend.dev> for showing ActiveLife 
 USE_RESEND = bool(RESEND_API_KEY and RESEND_API_KEY.strip())  # True if API key exists and is not empty
 
 #this is to determine if the id is validate
