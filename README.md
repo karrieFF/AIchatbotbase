@@ -19,7 +19,7 @@ A conversational AI chatbot system built with PyTorch and Transformers, designed
 - **Cloud Deployment**: 
   - Frontend: Render (Static Site)
   - Backend: Render (Web Service)
-  - Database: RunPod (postgres)
+  - Database: Render (postgres)
   - Model: RunPod (for larger models)
   
 
