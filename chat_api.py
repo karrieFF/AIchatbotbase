@@ -171,6 +171,7 @@ class CoachParticipant(BaseModel):
     participant_id: str
     participant_name: Optional[str] = None
     unread_count: int
+    current_session_id: Optional[str] = None
 
 #coach reply and request 
 class CoachReplyRequest(BaseModel):
@@ -358,9 +359,16 @@ def get_messages_from_db(session_id: str, limit: int = 50) -> List[dict]:
     conn = db_sync.pg_pool.getconn()
     try:
         with conn.cursor() as cur:
+            #print(f"\n🔍 DEBUG: get_messages_from_db called with session_id={session_id}")
+            
+            # First, check what session_ids exist in messages table
+            cur.execute("SELECT DISTINCT session_id FROM messages ORDER BY session_id")
+            all_sessions = cur.fetchall()
+            #print(f"📊 All session_ids in messages table: {[str(s[0]) for s in all_sessions]}")
+            
             cur.execute(
                 """
-                SELECT id, session_id, user_id, role, text, created_at
+                SELECT id, session_id, user_id, role, text, created_at, backend_mode
                 FROM messages
                 WHERE session_id = %s
                 ORDER BY created_at ASC
@@ -369,6 +377,8 @@ def get_messages_from_db(session_id: str, limit: int = 50) -> List[dict]:
                 (session_id, limit)
             )
             rows = cur.fetchall()
+            #print(f"📝 Found {len(rows)} messages for session_id={session_id}")
+            
             messages = []
             for row in rows:
                 # Convert backend format to frontend format
@@ -384,9 +394,15 @@ def get_messages_from_db(session_id: str, limit: int = 50) -> List[dict]:
                     "message": row[4],  # Use "message" instead of "text"
                     "created_at": row[5].isoformat() if row[5] else None
                 })
+            
+            #if messages:
+                #print(f"✅ Sample message: {messages[0]}")
+            
             return messages
     except Exception as e:
         print(f"⚠ Error fetching messages: {e}")
+        import traceback
+        traceback.print_exc()
         return []
     finally:
         db_sync.pg_pool.putconn(conn)
@@ -395,12 +411,13 @@ def get_messages_from_db(session_id: str, limit: int = 50) -> List[dict]:
 @app.get("/chat/messages")
 def get_messages(
     session_id: str = Query(..., description="Session ID to retrieve messages for"),
-    limit: int = Query(50, ge=1, le=100, description="Maximum number of messages to retrieve")
+    limit: int = Query(50, ge=1, le=500, description="Maximum number of messages to retrieve")
 ):
     """
     Retrieve chat messages for a given session.
     """
     messages = get_messages_from_db(session_id, limit)
+    #print(f"DEBUG: Retrieved {len(messages)} messages. Sample: {messages[0] if messages else 'empty'}")
     return {"messages": messages}
 
 #--------split chat endpoint -------------
@@ -450,9 +467,6 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
         return ChatResponse(reply=reply, user_id=user_id, session_id=session_id)
 
     elif backend_mode == "human":
-
-        standby_text = "Your message has been sent to your coach. They'll reply soon."
-
         # Save ONLY the user message and mark needs_reply = True; DO NOT call LLM
         background_tasks.add_task(
             save_with_error_handling,
@@ -460,8 +474,8 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
             {"backend_mode": backend_mode, "needs_reply": True}
         )
 
-        # Return an acknowledgement (frontend will show this as a short coach message)
-        return ChatResponse(reply=standby_text, user_id=user_id, session_id=session_id)
+        # Return empty reply - user just waits
+        return ChatResponse(reply="", user_id=user_id, session_id=session_id)
 
     else:
         raise HTTPException(status_code=400, detail=f"Invalid backend_mode: {backend_mode}")
@@ -484,6 +498,8 @@ def get_coach_participants(coach_id: str = Query(..., description="Coach user ID
     conn = db_sync.pg_pool.getconn()
     try:
         with conn.cursor() as cur:
+            #print(f"\n👨‍💼 DEBUG: get_coach_participants called for coach_id={coach_id}")
+            
             cur.execute(
                 """
                 SELECT 
@@ -496,7 +512,8 @@ def get_coach_participants(coach_id: str = Query(..., description="Coach user ID
                           AND COALESCE((m.metadata->>'replied')::boolean, 'false')::boolean = false
                       ),
                       0
-                    ) AS unread_count
+                    ) AS unread_count,
+                    (array_agg(m.session_id ORDER BY m.created_at DESC))[1] AS latest_session_id
                 FROM users p
                 LEFT JOIN user_profiles up ON up.user_id = p.id
                 LEFT JOIN messages m 
@@ -508,17 +525,140 @@ def get_coach_participants(coach_id: str = Query(..., description="Coach user ID
                 (coach_id,),
             )
             rows = cur.fetchall()
-            return [
-                CoachParticipant(
+            #print(f"📋 Found {len(rows)} participants for this coach")
+            
+            result = []
+            for r in rows:
+                participant = CoachParticipant(
                     participant_id=str(r[0]),
                     participant_name=r[1],
                     unread_count=r[2],
+                    current_session_id=str(r[3]) if r[3] else None,
+                )
+                #print(f"   👤 {participant.participant_name}: {participant.unread_count} unread, session_id={participant.current_session_id}")
+                result.append(participant)
+            
+            return result
+    finally:
+        db_sync.pg_pool.putconn(conn)
+
+#----------get all sessions for a participant----------
+class ParticipantSession(BaseModel):
+    session_id: str
+    message_count: int
+    created_at: str
+    updated_at: str
+
+@app.get("/coach/participant-sessions", response_model=List[ParticipantSession])
+def get_participant_sessions(participant_id: str = Query(..., description="Participant user ID")):
+    """
+    Get all sessions for a participant with message counts.
+    Coach can use this to see session history and switch between them.
+    """
+    if db_sync.pg_pool is None:
+        raise HTTPException(status_code=500, detail="Database not available")
+
+    try:
+        UUID(participant_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid participant_id format")
+
+    conn = db_sync.pg_pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            #print(f"\n📅 DEBUG: get_participant_sessions called for participant_id={participant_id}")
+            
+            cur.execute(
+                """
+                SELECT 
+                    session_id,
+                    COUNT(*) as message_count,
+                    MIN(created_at) as session_start,
+                    MAX(created_at) as session_end
+                FROM messages
+                WHERE user_id = %s
+                GROUP BY session_id
+                ORDER BY MAX(created_at) DESC
+                """,
+                (participant_id,)
+            )
+            rows = cur.fetchall()
+            #print(f"   Found {len(rows)} sessions for this participant")
+            
+            result = [
+                ParticipantSession(
+                    session_id=str(r[0]),
+                    message_count=r[1],
+                    created_at=r[2].isoformat() if r[2] else None,
+                    updated_at=r[3].isoformat() if r[3] else None,
                 )
                 for r in rows
             ]
+            
+            for session in result:
+                print(f"   📝 Session {session.session_id[:8]}...: {session.message_count} messages")
+            
+            return result
     finally:
         db_sync.pg_pool.putconn(conn)
-#------------coach reply messages ------------
+
+#----------mark messages as read (coach viewing)----------
+class MarkMessagesReadRequest(BaseModel):
+    session_id: str
+    participant_id: str
+
+class MarkMessagesReadResponse(BaseModel):
+    status: str
+    marked_count: int
+
+@app.post("/coach/mark-read", response_model=MarkMessagesReadResponse)
+def mark_messages_read(req: MarkMessagesReadRequest):
+    """
+    Mark all user messages in a session as read by the coach.
+    This clears the 'needs_reply' flag so unread count goes to 0.
+    """
+    if db_sync.pg_pool is None:
+        raise HTTPException(status_code=500, detail="Database not available")
+
+    try:
+        UUID(req.session_id)
+        UUID(req.participant_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid ID format")
+
+    conn = db_sync.pg_pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            #print(f"\n📖 DEBUG: Marking messages as read for session={req.session_id[:8]}...")
+            
+            # Mark all user messages in this session as read (needs_reply=false)
+            cur.execute(
+                """
+                UPDATE messages
+                SET metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('needs_reply', false)
+                WHERE user_id = %s
+                  AND session_id = %s
+                  AND role = 'user'
+                  AND (metadata->>'needs_reply')::boolean = true
+                RETURNING id
+                """,
+                (req.participant_id, req.session_id)
+            )
+            
+            marked = cur.fetchall()
+            marked_count = len(marked)
+            #print(f"   ✅ Marked {marked_count} messages as read")
+            
+            conn.commit()
+            return MarkMessagesReadResponse(status="ok", marked_count=marked_count)
+    except Exception as e:
+        conn.rollback()
+        print(f"Error marking messages as read: {e}")
+        raise HTTPException(status_code=500, detail="Failed to mark messages as read")
+    finally:
+        db_sync.pg_pool.putconn(conn)
+
+#------------coach reply messages------------
 @app.post("/coach/reply", response_model=CoachReplyResponse)
 def coach_reply(req: CoachReplyRequest):
     """
