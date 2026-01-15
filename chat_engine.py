@@ -132,25 +132,23 @@ class GPTCoachEngine:
                 messages = build_prompt("")
                 print("new user")
         else:
-        #determine if it is the first conversation or the follow-up conversation
+            #determine if it is the first conversation or the follow-up conversation
+            is_new_agent_mode = not agent_mode 
             is_returning_user = self.check_if_returning_user(user_id, session_id) #self is to call the function inside the class
 
-            if is_returning_user:
+            if is_new_agent_mode and not is_returning_user:
+                # Both agent_mode and user history are new: use first prompt
+                messages = build_prompt("")
+                print("new user (first prompt under )")
+            else:
                 user_context = self.get_user_context(user_id)
-                #print(f"DEBUG - User context: {user_context}")
                 try:
                     messages = build_prompt_follow(user_context)
-                    #print(f"DEBUG - User messages: {messages}")
                 except TypeError:
                     messages = build_prompt_follow("")
                     if messages and messages[0]['role'] == 'system':
                         messages[0]['content'] += f"\n\nCONTEXT DATA:\n{user_context}"
-                print("return user")
-
-            else:
-                #use the first conversation promopt
-                messages = build_prompt("")
-                print("new user")
+                print("return user (follow-up prompt)")
 
         # Clean up empty user messages if present
         if len(messages) >= 2 and messages[1].get("role") == "user" and messages[1].get("content", "") == "":
