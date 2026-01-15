@@ -330,7 +330,7 @@ def verify_otp(req: VerifyOTPRequest):
         with conn.cursor() as cur:
             # Check Code
             cur.execute("""
-                SELECT id FROM users 
+                SELECT id, role FROM users 
                 WHERE email = %s 
                 AND verification_code = %s 
                 AND code_expires_at > NOW()
@@ -340,10 +340,11 @@ def verify_otp(req: VerifyOTPRequest):
             
             if row:
                 user_id = str(row[0])
+                role = row[1]
                 # Clear code so it can't be reused
                 cur.execute("UPDATE users SET verification_code = NULL WHERE id = %s", (user_id,))
                 conn.commit()
-                return {"user_id": user_id, "status": "success"}
+                return {"user_id": user_id, "role": role, "status": "success"}
             else:
                 raise HTTPException(status_code=401, detail="Invalid or expired code")
     finally:
@@ -426,7 +427,7 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
 
     # 2) determine backend_mode
     if req.backend_mode:
-        backend_mode = req.backend_Mode
+        backend_mode = req.backend_mode
     else:
         backend_mode = get_backend_mode_for_user(user_id)
 
@@ -470,7 +471,7 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
 def get_coach_participants(coach_id: str = Query(..., description="Coach user ID")):
     """
     For coach users: list assigned participants with count of unread (needs_reply) messages.
-    Uses users.assigned_coach_id instead of a mapping table.
+    Uses users.assigned_coach_id.
     """
     if db_sync.pg_pool is None:
         raise HTTPException(status_code=500, detail="Database not available")
@@ -517,7 +518,6 @@ def get_coach_participants(coach_id: str = Query(..., description="Coach user ID
             ]
     finally:
         db_sync.pg_pool.putconn(conn)
-
 #------------coach reply messages ------------
 @app.post("/coach/reply", response_model=CoachReplyResponse)
 def coach_reply(req: CoachReplyRequest):
@@ -529,7 +529,7 @@ def coach_reply(req: CoachReplyRequest):
     if db_sync.pg_pool is None:
         raise HTTPException(status_code=500, detail="Database not available")
 
-    # Basic ID validation
+    # Validate IDs
     try:
         UUID(req.coach_id)
         UUID(req.participant_id)
@@ -540,14 +540,22 @@ def coach_reply(req: CoachReplyRequest):
     conn = db_sync.pg_pool.getconn()
     try:
         with conn.cursor() as cur:
-            # 1) Insert coach reply as assistant message
+            # 0) Verify coach is actually assigned to this participant
+            cur.execute(
+                "SELECT 1 FROM users WHERE id = %s AND assigned_coach_id = %s",
+                (req.participant_id, req.coach_id),
+            )
+            if cur.fetchone() is None:
+                raise HTTPException(status_code=403, detail="Coach not assigned to this participant")
+
+            # 1) Insert coach reply as assistant message in participant's conversation
             cur.execute(
                 """
                 INSERT INTO messages (session_id, user_id, role, text, metadata)
                 VALUES (%s, %s, 'assistant', %s,
                         jsonb_build_object(
                           'backend_mode', 'human',
-                          'assigned_coach_id', %s
+                          'from_coach', %s
                         ))
                 """,
                 (req.session_id, req.participant_id, req.message, req.coach_id),
@@ -571,6 +579,9 @@ def coach_reply(req: CoachReplyRequest):
 
         return CoachReplyResponse(status="ok")
 
+    except HTTPException:
+        # re-raise HTTPException as-is
+        raise
     except Exception as e:
         conn.rollback()
         print(f"Error saving coach reply: {e}")
