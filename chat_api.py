@@ -1,4 +1,4 @@
-from fastapi import FastAPI, BackgroundTasks, Query, HTTPException
+from fastapi import FastAPI, BackgroundTasks, Query, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
@@ -28,6 +28,7 @@ from datetime import datetime, timedelta, timezone
 import os
 import requests
 from dotenv import load_dotenv
+import shutil 
 
 print("DEBUG: Loading environment variables")
 
@@ -824,3 +825,25 @@ def delete_notification(notification_id: str):
         raise HTTPException(status_code=500, detail="Failed to delete")
     finally:
         db_sync.pg_pool.putconn(conn)
+
+@app.post("/thinkaloud/upload")
+async def upload_thinkaloud(
+    file: UploadFile = File(...),
+    session_id: str = Form(...),
+    user_id: str = Form(...),
+):
+    upload_dir="think_aloud_recordings"
+    os.makedirs(upload_dir, exist_ok=True)
+
+    #create a safe filename
+    filename = f"{user_id}_{session_id}_{file.filename}"
+    filepath = os.path.join(upload_dir, filename)
+
+    try:
+        with open(filepath, 'wb') as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        print(f"✓ Saved think-aloud audio: {filename}")
+        return {"status": "success", "filename": filename}
+    except Exception as e:
+        print(f"⚠ Error saving audio: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save audio file")

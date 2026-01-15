@@ -202,7 +202,7 @@ class GPTCoachEngine:
                         "temperature": 0.7,
                         "top_p": 0.9
                     },
-                    timeout=60
+                    timeout=300
                 )
                 api_response.raise_for_status()
                 result = api_response.json()
