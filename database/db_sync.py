@@ -35,6 +35,7 @@ def save_message_sync(
     user_id: Union[str, uuid.UUID], 
     role: str, 
     text: str, 
+    backend_mode=None,
     metadata: dict | None = None) -> None:
     if pg_pool is None:
         print("⚠ ERROR: pg_pool not initialized - cannot save message")
@@ -44,8 +45,8 @@ def save_message_sync(
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO messages (session_id, user_id, role, text, metadata) VALUES (%s,%s,%s,%s,%s)",
-                (session_id, user_id, role, text, json.dumps(metadata or {}))
+                "INSERT INTO messages (session_id, user_id, role, text, metadata, backend_mode) VALUES (%s,%s,%s,%s,%s)",
+                (session_id, user_id, role, text, json.dumps(metadata or {}), backend_mode)
             )
         conn.commit()
         print(f"✓ Saved {role} message to DB (session: {str(session_id)[:8]}...)")
