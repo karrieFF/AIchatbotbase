@@ -89,6 +89,10 @@ app.add_middleware(
 #create one chatbot for all users
 engine = GPTCoachEngine () #we can not create one chatbot for all users
 
+#the placeholder for another llm chatbot
+#we can put another llm chatbot here
+#example: engine2 = GPTCoachEngine()
+
 # class is to define the standard format of inside computer communication
 class ChatRequest(BaseModel):
     message: str
@@ -154,6 +158,29 @@ class OTPRequest(BaseModel):
 class VerifyOTPRequest(BaseModel):
     email: str
     code: str
+
+#three chat request
+class ChatRequest(BaseModel):
+    message: str
+    user_id: Optional[str] = None
+    session_id: Optional[str] = None
+    backend_mode: Optional[str] = None  # "llm1", "llm2", or "human"
+
+#coach participant connection
+class CoachParticipant(BaseModel):
+    participant_id: str
+    participant_name: Optional[str] = None
+    unread_count: int
+
+#coach reply and request 
+class CoachReplyRequest(BaseModel):
+    coach_id: str
+    participant_id: str
+    session_id: str
+    message: str
+
+class CoachReplyResponse(BaseModel):
+    status: str
 
 @app.get("/")
 async def root():
@@ -224,6 +251,37 @@ def send_email_otp(email: str, code: str):
     else:
         # Local: Use Gmail SMTP
         return _send_email_smtp(email, code)
+
+#--------------get the backend mode for the user-------
+def get_backend_mode_for_user(user_id: str) -> str:
+    """
+    Look up backend_mode for a user in the users table.
+    Fallback to 'ptcoach' if not set or DB is unavailable.
+    """
+    if db_sync.pg_pool is None:
+        return "ptcoach"
+
+    conn = db_sync.pg_pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT backend_mode FROM users WHERE id = %s", (user_id,))
+            row = cur.fetchone()
+            if row and row[0]:
+                return row[0]
+            return "ptcoach"
+    finally:
+        db_sync.pg_pool.putconn(conn)
+
+# Wrapper function to handle errors in background tasks
+def save_with_error_handling(session_id: str, user_id: str, role: str, text: str, metadata: Optional[dict] = None):
+    try:
+        save_message_sync(session_id, user_id, role, text, metadata=metadata)
+    except Exception as e:
+        print(f"⚠ CRITICAL: Background task failed to save {role} message:")
+        print(f"  Error: {e}")
+        print(f"  Session: {session_id}, User: {user_id}")
+        import traceback
+        traceback.print_exc()
 
 @app.post("/auth/request-otp")
 def request_otp(req: OTPRequest):
@@ -344,48 +402,181 @@ def get_messages(
     messages = get_messages_from_db(session_id, limit)
     return {"messages": messages}
 
-
+#--------split chat endpoint -------------
 @app.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest, background_tasks: BackgroundTasks):
     """
     Chat endpoint with automatic database sync.
-    Uses background tasks to sync without blocking the response.
+    Supports:
+      - ptcoach  → GPTCoachEngine (engine)
+      - ptftcoach → GPTCoachEngineV2 (engine_v2, when available)
+      - human → human coach, no LLM
     """
     # 1) Require user_id from frontend (global ID)
     if not req.user_id:
         raise HTTPException(status_code=400, detail="user_id is required")
 
-    # 2) Validate user_id format (must be UUID, but do NOT generate a new one)
     try:
-        UUID(req.user_id)
+        UUID(req.user_id) #must be UUID, but do NOT generate a new one
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid user_id format")
 
     user_id = req.user_id #trust global ID
-
-    # 3) session_id: validate or generate new per conversation
     session_id = validate_or_generate_uuid(req.session_id)
 
-    # Get reply synchronously (this is the slow part)
-    reply = engine.chat(req.message, user_id=user_id, session_id=session_id)
+    # 2) determine backend_mode
+    if req.backend_mode:
+        backend_mode = req.backend_Mode
+    else:
+        backend_mode = get_backend_mode_for_user(user_id)
 
-    # Wrapper function to handle errors in background tasks
-    def save_with_error_handling(session_id: str, user_id: str, role: str, text: str):
-        try:
-            save_message_sync(session_id, user_id, role, text)
-        except Exception as e:
-            print(f"⚠ CRITICAL: Background task failed to save {role} message:")
-            print(f"  Error: {e}")
-            print(f"  Session: {session_id}, User: {user_id}")
-            import traceback
-            traceback.print_exc()
+    if backend_mode in ('ptcoach', 'ptftcoach'):
+        #for now, use the same, we can update later
+        reply = engine.chat(req.message, user_id=user_id, session_id=session_id)
 
-    # Schedule DB writes in background (runs after response is returned)
-    # This doesn't block the user - they get response immediately
-    background_tasks.add_task(save_with_error_handling, session_id, user_id, "user", req.message)
-    background_tasks.add_task(save_with_error_handling, session_id, user_id, "assistant", reply)
+        # Schedule DB writes in background (user + assistant), tagging backend_mode
+        background_tasks.add_task(
+            save_with_error_handling,
+            session_id, user_id, "user", req.message,
+            {"backend_mode": backend_mode}
+        )
+        background_tasks.add_task(
+            save_with_error_handling,
+            session_id, user_id, "assistant", reply,
+            {"backend_mode": backend_mode}
+        )
 
-    return ChatResponse(reply=reply, user_id=user_id, session_id=session_id)
+        return ChatResponse(reply=reply, user_id=user_id, session_id=session_id)
+
+    elif backend_mode == "human":
+
+        standby_text = "Your message has been sent to your coach. They'll reply soon."
+
+        # Save ONLY the user message and mark needs_reply = True; DO NOT call LLM
+        background_tasks.add_task(
+            save_with_error_handling,
+            session_id, user_id, "user", req.message,
+            {"backend_mode": backend_mode, "needs_reply": True}
+        )
+
+        # Return an acknowledgement (frontend will show this as a short coach message)
+        return ChatResponse(reply=standby_text, user_id=user_id, session_id=session_id)
+
+    else:
+        raise HTTPException(status_code=400, detail=f"Invalid backend_mode: {backend_mode}")
+
+#-----get coach participants----------------
+@app.get("/coach/participants", response_model=List[CoachParticipant])
+def get_coach_participants(coach_id: str = Query(..., description="Coach user ID")):
+    """
+    For coach users: list assigned participants with count of unread (needs_reply) messages.
+    Uses users.assigned_coach_id instead of a mapping table.
+    """
+    if db_sync.pg_pool is None:
+        raise HTTPException(status_code=500, detail="Database not available")
+
+    try:
+        UUID(coach_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid coach_id format")
+
+    conn = db_sync.pg_pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT 
+                    p.id AS participant_id,
+                    COALESCE(up.name, p.email) AS participant_name,
+                    COALESCE(
+                      COUNT(*) FILTER (
+                        WHERE m.role = 'user'
+                          AND (m.metadata->>'needs_reply')::boolean = true
+                          AND COALESCE((m.metadata->>'replied')::boolean, 'false')::boolean = false
+                      ),
+                      0
+                    ) AS unread_count
+                FROM users p
+                LEFT JOIN user_profiles up ON up.user_id = p.id
+                LEFT JOIN messages m 
+                  ON m.user_id = p.id
+                WHERE p.assigned_coach_id = %s
+                GROUP BY p.id, participant_name
+                ORDER BY participant_name
+                """,
+                (coach_id,),
+            )
+            rows = cur.fetchall()
+            return [
+                CoachParticipant(
+                    participant_id=str(r[0]),
+                    participant_name=r[1],
+                    unread_count=r[2],
+                )
+                for r in rows
+            ]
+    finally:
+        db_sync.pg_pool.putconn(conn)
+
+#------------coach reply messages ------------
+@app.post("/coach/reply", response_model=CoachReplyResponse)
+def coach_reply(req: CoachReplyRequest):
+    """
+    Coach sends a reply to a participant.
+    Stored as role='assistant' so it shows as coach/AI in participant chat.
+    Also clears needs_reply on that participant's messages for this session.
+    """
+    if db_sync.pg_pool is None:
+        raise HTTPException(status_code=500, detail="Database not available")
+
+    # Basic ID validation
+    try:
+        UUID(req.coach_id)
+        UUID(req.participant_id)
+        UUID(req.session_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid ID format")
+
+    conn = db_sync.pg_pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            # 1) Insert coach reply as assistant message
+            cur.execute(
+                """
+                INSERT INTO messages (session_id, user_id, role, text, metadata)
+                VALUES (%s, %s, 'assistant', %s,
+                        jsonb_build_object(
+                          'backend_mode', 'human',
+                          'assigned_coach_id', %s
+                        ))
+                """,
+                (req.session_id, req.participant_id, req.message, req.coach_id),
+            )
+
+            # 2) Mark previous user messages for this session as replied
+            cur.execute(
+                """
+                UPDATE messages
+                SET metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('replied', true)
+                WHERE user_id = %s
+                  AND session_id = %s
+                  AND role = 'user'
+                  AND (metadata->>'needs_reply')::boolean = true
+                  AND COALESCE((metadata->>'replied')::boolean, 'false')::boolean = false
+                """,
+                (req.participant_id, req.session_id),
+            )
+
+            conn.commit()
+
+        return CoachReplyResponse(status="ok")
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error saving coach reply: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save reply")
+    finally:
+        db_sync.pg_pool.putconn(conn)
 
 # --- SMART goals endpoint ---
 @app.post("/chat/end_session", response_model=SessionEndResponse)
