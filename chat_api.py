@@ -952,6 +952,7 @@ def get_activity_chart(
 class UserProfileUpdate(BaseModel):
     user_id: str
     name: str | None = None
+    email: str | None = None
     phone: str | None = None
     date_of_birth: str | None = None  # "YYYY-MM-DD"
     gender: str | None = None
@@ -970,7 +971,7 @@ def get_profile (user_id: str = Query(..., description="User ID")):
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT p.name, p.phone, p.date_of_birth, p.gender, 
+                SELECT p.name, u.email, p.phone, p.date_of_birth, p.gender, 
                 p.height_cm, p.weight_kg, p.fitness_level, p.health_profile, 
                 u.created_at
                 FROM user_profiles p
@@ -984,6 +985,7 @@ def get_profile (user_id: str = Query(..., description="User ID")):
         if not row:
             return {
                 "name": None,
+                "email": None,
                 "phone": None,
                 "date_of_birth": None,
                 "gender": None,
@@ -996,14 +998,15 @@ def get_profile (user_id: str = Query(..., description="User ID")):
 
         return {
             "name": row[0],
-            "phone": row[1],
-            "date_of_birth": row[2],
-            "gender": row[3],
-            "height_cm": row[4],
-            "weight_kg": row[5],
-            "fitness_level": row[6],
-            "health_profile": row[7],
-            "created_at": row[8].isoformat() if row[8] else None
+            "email": row[1],
+            "phone": row[2],
+            "date_of_birth": row[3],
+            "gender": row[4],
+            "height_cm": row[5],
+            "weight_kg": row[6],
+            "fitness_level": row[7],
+            "health_profile": row[8],
+            "created_at": row[9].isoformat() if row[9] else None
         }
     finally:
         db_sync.pg_pool.putconn(conn)
@@ -1019,12 +1022,13 @@ def upsert_profile(profile: UserProfileUpdate):
             cur.execute(
                 """
                 INSERT INTO user_profiles
-                  (user_id, name, phone, date_of_birth, gender,
+                  (user_id, name, email, phone, date_of_birth, gender,
                    height_cm, weight_kg, fitness_level, health_profile)
                 VALUES
-                  (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                  (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (user_id) DO UPDATE SET
                   name = EXCLUDED.name,
+                  email = EXCLUDED.email,
                   phone = EXCLUDED.phone,
                   date_of_birth = EXCLUDED.date_of_birth,
                   gender = EXCLUDED.gender,
@@ -1037,6 +1041,7 @@ def upsert_profile(profile: UserProfileUpdate):
                 (
                     profile.user_id,
                     profile.name,
+                    profile.email,
                     profile.phone,
                     profile.date_of_birth,
                     profile.gender,
