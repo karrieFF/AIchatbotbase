@@ -103,6 +103,7 @@ class ChatResponse(BaseModel):
     reply: str
     user_id: str
     session_id: str
+    backend_mode: str
 
 
 class SessionEndRequest(BaseModel):
@@ -392,7 +393,8 @@ def get_messages_from_db(session_id: str, limit: int = 50) -> List[dict]:
                     "user_id": str(row[2]),
                     "sender": sender,  # Convert "assistant" to "ai"
                     "message": row[4],  # Use "message" instead of "text"
-                    "created_at": row[5].isoformat() if row[5] else None
+                    "created_at": row[5].isoformat() if row[5] else None,
+                    "backend_mode": row[6]  # Include backend_mode ("human", "ptcoach", "ptftcoach")
                 })
             
             #if messages:
@@ -464,7 +466,7 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
             {"backend_mode": backend_mode}
         )
 
-        return ChatResponse(reply=reply, user_id=user_id, session_id=session_id)
+        return ChatResponse(reply=reply, user_id=user_id, session_id=session_id, backend_mode=backend_mode)
 
     elif backend_mode == "human":
         # Save ONLY the user message and mark needs_reply = True; DO NOT call LLM
@@ -475,7 +477,7 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
         )
 
         # Return empty reply - user just waits
-        return ChatResponse(reply="", user_id=user_id, session_id=session_id)
+        return ChatResponse(reply="", user_id=user_id, session_id=session_id, backend_mode="human")
 
     else:
         raise HTTPException(status_code=400, detail=f"Invalid backend_mode: {backend_mode}")
