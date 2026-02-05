@@ -9,5 +9,4 @@ hf_transfer
 runpod
 gptqmodel==0.2.6
 safetensors
-pip install --upgrade pip
 autoawq==0.2.6
