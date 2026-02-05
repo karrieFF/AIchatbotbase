@@ -7,6 +7,6 @@ fastapi
 uvicorn
 hf_transfer
 runpod
-gptqmodel==0.2.6
+gptqmodel>=1.0.1
 safetensors
 autoawq==0.2.6
