@@ -17,7 +17,7 @@ import os
 
 # --- CONFIGURATION ---
 # Default model (can be overridden by environment variable MODEL_NAME)
-DEFAULT_MODEL = "Qwen/Qwen2.5-14B-Instruct"  # For 14B model (regular, not AWQ)
+DEFAULT_MODEL = "Qwen/Qwen2.5-14B-Instruct-AWQ"  # For 14B model (regular, not AWQ)
 #Model_NAME = "Qwen/Qwen2.5-7B-Instruct"  # For 7B model (smaller, faster)
 #Model_NAME = "Qwen/Qwen2.5-32B-Instruct"  # For 32B model (needs A100 80GB, no AWQ)
 

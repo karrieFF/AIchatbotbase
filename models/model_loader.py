@@ -1,7 +1,7 @@
 #model loader, transformer load automatically
 #this if for local models only
 
-Model_NAME = "Qwen/Qwen2.5-1.5B-Instruct" #Qwen2.5-0.5B 
+Model_NAME = "Qwen/Qwen2.5-1.5B-Instruct-AWQ" #Qwen2.5-0.5B 
 
 def load_model():
     import torch
