@@ -45,7 +45,7 @@ def load_model():
     
     try:
         from transformers import AutoTokenizer
-        from autoawq import AutoAWQForCausalLM
+        from awq import AutoAWQForCausalLM
         
         tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
         
