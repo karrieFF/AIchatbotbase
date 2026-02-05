@@ -1,12 +1,14 @@
 --extra-index-url https://download.pytorch.org/whl/cu118
 
-torch>=2.2.0
-transformers>=4.57.2
-accelerate>=1.10.1
+torch==2.3.1
+transformers==4.45.2
+tokenizers==0.20.3
+accelerate==0.34.2
+safetensors>=0.4.3
+
+autoawq==0.2.7
+
 fastapi
 uvicorn
 hf_transfer
 runpod
-gptqmodel>=1.0.1
-safetensors
-autoawq==0.2.6
