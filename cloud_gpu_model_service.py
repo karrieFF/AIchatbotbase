@@ -44,14 +44,14 @@ def load_model():
     print(f"\n[{MODEL_NAME}] Loading model... (This may take a few minutes)")
     
     try:
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+        from transformers import AutoTokenizer
+        from autoawq import AutoAWQForCausalLM
         
         tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
         
         # Load model with FP16 for GPU optimization
-        model = AutoModelForCausalLM.from_pretrained(
+        model = AutoAWQForCausalLM.from_pretrained(
             MODEL_NAME,
-            torch_dtype=torch.float16,
             device_map="auto",
             low_cpu_mem_usage=True,
             trust_remote_code=True
