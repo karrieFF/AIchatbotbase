@@ -6,10 +6,10 @@ tokenizers==0.20.3
 accelerate==0.34.2
 safetensors>=0.4.3
 numpy==1.26.4
-autoawq==0.2.6
+autoawq==0.2.7
 autoawq-kernels
 
-intel-extension-for-transformers
+#intel-extension-for-transformers
 
 fastapi
 uvicorn
