@@ -87,7 +87,7 @@ app.add_middleware(
 )
 
 #create one chatbot for all users
-engine = GPTCoachEngine () #we can not create one chatbot for all users
+engine = GPTCoachEngine () #we cannot create one chatbot for all users
 
 #the placeholder for another llm chatbot
 #we can put another llm chatbot here
