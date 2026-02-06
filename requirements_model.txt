@@ -7,7 +7,7 @@ accelerate==0.34.2
 safetensors>=0.4.3
 numpy==1.26.4
 autoawq==0.2.6
-autoawq-kernels==0.2.6
+autoawq-kernels
 
 intel-extension-for-transformers
 

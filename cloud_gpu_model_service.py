@@ -128,7 +128,6 @@ def generate(request: ChatRequest):
         device = next(model.parameters()).device
         inputs = tokenizer(text_input, return_tensors="pt", max_length=2048, truncation=True)
         inputs = {k: v.to(device) for k, v in inputs.items()}
-        
 
         # 3. Generate
         with torch.no_grad():
