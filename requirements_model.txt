@@ -8,6 +8,8 @@ safetensors>=0.4.3
 numpy==1.26.4
 autoawq==0.2.6
 
+intel-extension-for-transformers
+
 fastapi
 uvicorn
 hf_transfer

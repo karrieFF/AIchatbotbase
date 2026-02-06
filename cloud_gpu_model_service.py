@@ -47,7 +47,7 @@ def load_model():
         from transformers import AutoTokenizer
         from awq import AutoAWQForCausalLM
         
-        tokenizer = AutoTokenizer.from_quantized(MODEL_NAME, trust_remote_code=True)
+        tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
         
         # Load model with FP16 for GPU optimization
         model = AutoAWQForCausalLM.from_quantized(
