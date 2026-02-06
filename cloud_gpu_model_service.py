@@ -45,6 +45,7 @@ def load_model():
     
     try:
         from transformers import AutoTokenizer
+        # AutoAWQ uses optional CUDA kernels. We'll log env details to help diagnose.
         from awq import AutoAWQForCausalLM
         
         tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
@@ -62,8 +63,12 @@ def load_model():
         if torch.cuda.is_available():
             print(f"[{MODEL_NAME}] ✓ GPU Active: {torch.cuda.get_device_name(0)}")
             print(f"[{MODEL_NAME}] ✓ VRAM: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB")
+            print(f"[{MODEL_NAME}] ✓ Torch: {torch.__version__} | CUDA (torch): {torch.version.cuda}")
+        else:
+            print(f"[{MODEL_NAME}] ✓ CPU mode (CUDA not available)")
     except Exception as e:
         print(f"[{MODEL_NAME}] ❌ FAILED to load model: {e}")
+        print("Hint: If the error mentions missing 'autoawq-kernels', ensure it is installed in the SAME Python env as this process and matches your CUDA version (e.g., 12.1 for Ada/RTX 4090).")
         raise e
 
 # --- API MODELS ---

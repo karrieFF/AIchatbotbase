@@ -8,7 +8,6 @@ safetensors>=0.4.3
 numpy==1.26.4
 autoawq==0.2.6
 autoawq-kernels
-git+https://github.com/casper-hansen/AutoAWQ_kernels.git
 
 intel-extension-for-transformers
 
