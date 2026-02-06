@@ -1,4 +1,3 @@
-
 import threading
 import os
 from dotenv import load_dotenv
@@ -25,6 +24,9 @@ class GPTCoachEngine:
             self.tokenizer, self.model = load_model()
             self.model.eval()
             print("✓ Using local model")
+
+        # Define agent_mode as a class attribute with a default value
+        self.agent_mode = False
 
         # Store separate conversation histories for each user and session
         # Structure: {user_id: {session_id: [messages]}}
@@ -133,7 +135,7 @@ class GPTCoachEngine:
                 print("new user")
         else:
             #determine if it is the first conversation or the follow-up conversation
-            is_new_agent_mode = not agent_mode 
+            is_new_agent_mode = not self.agent_mode 
             is_returning_user = self.check_if_returning_user(user_id, session_id) #self is to call the function inside the class
 
             if is_new_agent_mode and not is_returning_user:
@@ -223,8 +225,11 @@ class GPTCoachEngine:
                 tokenize=False,
                 add_generation_prompt=True,
             )
+            device = next(self.model.parameters()).device
+            inputs = self.tokenizer(chat_text, return_tensors="pt", max_length=2048, truncation=True)
+            inputs = {k: v.to(device) for k, v in inputs.items()}
 
-            inputs = self.tokenizer(chat_text, return_tensors="pt").to(self.model.device)
+            #inputs = self.tokenizer(chat_text, return_tensors="pt").to(self.model.device)
 
             import torch
             # Generate outputs based on inputs (computer language)
@@ -233,7 +238,7 @@ class GPTCoachEngine:
                     **inputs,
                     max_new_tokens=500, 
                     temperature=0.7, 
-                    top_p=0.9, 
+                    top_p=0.5, 
                     do_sample=True,
                     eos_token_id=self.tokenizer.eos_token_id,
                 )
