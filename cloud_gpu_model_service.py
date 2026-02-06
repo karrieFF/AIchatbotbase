@@ -124,7 +124,11 @@ def generate(request: ChatRequest):
             raise HTTPException(status_code=400, detail="Either 'messages' or 'prompt' is required")
 
         # 2. Tokenize
-        inputs = tokenizer(text_input, return_tensors="pt").to(model.device)
+        #inputs = tokenizer(text_input, return_tensors="pt").to(model.device)
+        device = next(model.parameters()).device
+        inputs = tokenizer(text_input, return_tensors="pt", max_length=2048, truncation=True)
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+        
 
         # 3. Generate
         with torch.no_grad():
